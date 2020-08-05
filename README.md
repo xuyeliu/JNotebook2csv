@@ -9,6 +9,6 @@ We have four input type:
 
 # example usage
 
-`python3 Jupyter2csv.py --indir ./dataset_0/notebook --outdir ./output/`
+`python3 JNotebook2csv.py --indir ./dataset_0/notebook --outdir ./output/`
 
-`python3 Jupyter2csv.py --infile ./dataset_0/notebook/1-house-prices-solution-top-1.ipynb --outfile ./output/house-price.csv`
+`python3 JNotebook2csv.py --infile ./dataset_0/notebook/1-house-prices-solution-top-1.ipynb --outfile ./output/house-price.csv`
