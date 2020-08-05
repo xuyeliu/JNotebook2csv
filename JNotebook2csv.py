@@ -4,13 +4,13 @@ import csv
 import pandas
 import argparse
 import sys
-def getFiles(dir, suffix): # 查找根目录，文件后缀 
+def getFiles(dir, suffix):
     res = []
-    for root, directory, files in os.walk(dir):  # =>当前根,根下目录,目录下的文件
+    for root, directory, files in os.walk(dir): 
         for filename in files:
-            name, suf = os.path.splitext(filename) # =>文件名,文件后缀
+            name, suf = os.path.splitext(filename)
             if suf == suffix:
-                res.append(os.path.join(root, filename)) # =>吧一串字符串组合成路径
+                res.append(os.path.join(root, filename))
     return res
 
 
@@ -50,7 +50,7 @@ if __name__ == '__main__':
 
     if indir and outdir and not infile and not infile:
         file_list = getFiles(indir, '.ipynb')
-        for file in getFiles(indir, '.ipynb'):  # =>查找以.py结尾的文件
+        for file in getFiles(indir, '.ipynb'):
             print(file)
 
         for n_index, notebook in enumerate(file_list):
