@@ -1,0 +1,454 @@
+ID,Source,Type,Category,Stage
+0,"# 参考・引用
+[House Prices: Advanced Regression Techniques](https://www.kaggle.com/c/house-prices-advanced-regression-techniques)
+
+[Comprehensive data exploration with Python](https://www.kaggle.com/pmarcelino/comprehensive-data-exploration-with-python)
+
+[Kaggle Tutorial : House Prices](https://www.kaggle.com/takizawa/kaggle-tutorial-house-prices?scriptVersionId=1081693)",markdown,,
+1,"# 概要
+1. モデルの作成
+  - モデル作成の為の準備(ライブラリのインポート、データの読込・確認)
+  - 線形回帰によるモデルの作成
+  - モデルの評価
+
+2. モデルの改善
+  - データの分析
+  - データの整備
+  - アルゴリズムの変更
+
+※本来ならば最初のモデル作成の前にデータの分析や整備を行うべきだが、学習内容をシンプルにする為に、あえて上記の手順で実施",markdown,,
+2,"# 実行環境について
+このPython 3環境には、多くの有用な分析ライブラリがインストールされていて、Docker Imageで定義されています。[Docker Image 参照先リンク](https://github.com/kaggle/docker-python)",markdown,,
+3,"# ライブラリについて
+機械学習の実装を行うに当たって、役に立つライブラリについて説明。
+
+## Pandas
+データ解析を支援する機能を提供するライブラリ。数表や時系列データを操作するためのデータ構造と演算を提供。
+
+### 特徴
+- データ操作のための高速で効率的なDataFrame (行列型) オブジェクト
+- メモリ内のデータ構造と複数のフォーマット(CSV, TXT, xls, xlsx, )のデータ間で相互に読み書きするためのツール群
+- データ処理(カウント, 集計, 変換, 欠損値処理, マージ, 結合, etc...)
+- 時系列データ処理(日, 週, 月, 四半期, 年)
+
+## Matplotlib(mpl_toolkits含む)
+グラフ描画の為のライブラリ。
+
+### グラフの種類
+- 折れ線グラフ
+- 散布図
+- ヒストグラム
+- ヒートマップ
+- 3Dグラフ
+
+## Seaborn
+Matplotlibの機能を**より美しく、またより簡単**に実現するためのライブラリ。
+
+### グラフの種類
+- 折れ線グラフ
+- 散布図
+- ヒストグラム
+- ヒートマップ
+
+## Numpy
+プログラミング言語Pythonにおいて数値計算を効率的に行うためのライブラリ。
+
+効率的な数値計算を行うための型付きの多次元配列（例えばベクトルや行列など）のサポートをPythonに加えるとともに、それらを操作するための大規模な高水準の数学関数ライブラリを提供。
+
+## scikit-learn
+Pythonのオープンソース機械学習ライブラリ。
+Pythonの数値計算ライブラリのNumPyとSciPyとやり取りするよう設計されている。
+",markdown,,
+4,"# No.1
+# ライブラリのインポート
+import pandas as pd
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import seaborn as sns
+import numpy as np
+from sklearn.linear_model import LinearRegression
+
+# Jupyter Notebookの中でインライン表示する場合の設定（これが無いと別ウィンドウでグラフが開く）
+%matplotlib inline 
+",code,,
+5,"# 1. モデルの作成
+## Kaggle上に保存されているデータの確認
+画面右上の < ボタンをクリック後、Dataタブをクリックすると、本環境に保存されているデータの一覧が表示される。",markdown,,
+6,"### Kaggle上に保存されているデータの読み込み
+ファイルパスは ../input/[読み込みたいデータファイル]
+
+Pandasでデータを読み込むとDataFrameというオブジェクトができる。
+
+DataFrameとは簡単に言うと行列データで、機械学習を行う際に扱いやすいデータ形式。",markdown,,
+7,"# No.2
+# データの読み込み
+df = pd.read_csv(""../input/train.csv"")",code,,
+8,"# No.3
+# 読み込んだデータの確認
+df",code,,
+9,"# No.4
+# 先頭5行の確認
+df.head()",code,,
+10,"## 線形回帰分析での予測
+- カラム[OverallQual]と線形回帰分析を用いて学習処理を実施する
+- カラム[OverallQual] : Rates the overall material and finish of the house（家全体の材料と仕上げの評価）
+- 線形回帰分析の数式 : y = θ0 + θ1X1 + θ2X2 + θ3X3 + .... + θX
+- 本処理の数式 :  y[SalesPrice] = θ0[y切片] + θ1[傾き] * X1[OverallQual]",markdown,,
+11,"# No.5
+# XにOverallQual、yにSalePriceをセット
+X = df[[""OverallQual""]].values
+y = df[""SalePrice""].values
+
+# アルゴリズムに線形回帰(Linear Regression)を採用
+slr = LinearRegression()
+
+# fit関数でモデル作成
+slr.fit(X,y)
+
+# 偏回帰係数(回帰分析において得られる回帰方程式の各説明変数の係数)を出力
+# 偏回帰係数はscikit-learnのcoefで取得
+print('傾き：{0}'.format(slr.coef_[0]))
+
+# y切片(直線とy軸との交点)を出力
+# 余談：x切片もあり、それは直線とx軸との交点を指す
+print('y切片: {0}'.format(slr.intercept_))",code,,
+12,"## 線形回帰から導き出される数式
+ y[SalesPrice] = -96206.07951476038[y切片] + 45435.8025930994[傾き] * X[OverallQual]
+ 
+ ## 線形回帰から導き出される数式とデータセットを図示
+ - plt.scatter(X, y) : 散布図
+ - plt.plot(X,slr.predict(X),color='red') : 折れ線グラフ",markdown,,
+13,"# No.6
+# 散布図を描画
+plt.scatter(X,y)
+
+# 折れ線グラフを描画
+plt.plot(X,slr.predict(X),color='red')
+
+# 表示
+plt.show()",code,,
+14,"## テストデータを用いて予測
+ここまでの処理でモデルが作成されましたので、テスト(モデル評価用)データを用いて予測を行います。",markdown,,
+15,"# No.7
+# テストデータの読込
+df_test = pd.read_csv(""../input/test.csv"")",code,,
+16,"# No.8
+# テストデータの内容確認(評価用のデータなので、SalePriceはない)
+df_test.head()",code,,
+17,"# No.9
+# テストデータの OverallQual の値をセット
+X_test = df_test[[""OverallQual""]].values
+
+# 学習済みのモデルから予測した結果をセット
+y_test_pred = slr.predict(X_test)",code,,
+18,"# No.10
+# 学習済みのモデルから予測した結果を出力
+y_test_pred",code,,
+19,"## Kaggleにサブミットするファイル形式に変換
+作成したモデルをKaggleに提出して評価を受ける為に、[決められた提出フォーマット](https://www.kaggle.com/c/house-prices-advanced-regression-techniques#evaluation)に変換します。
+- Id、SalePriceの2列のファイル",markdown,,
+20,"# No.11
+# df_testに SalePrice カラムを追加し、学習済みのモデルから予測した結果をセット
+df_test[""SalePrice""] = y_test_pred",code,,
+21,"# No.12
+# df_testの先頭5行を確認
+df_test.head()",code,,
+22,"# No.13
+# Id, SalePriceの2列だけ表示
+df_test[[""Id"",""SalePrice""]].head()",code,,
+23,"# No.14
+# Id, SalePriceの2列だけのファイルに変換
+df_test[[""Id"",""SalePrice""]].to_csv(""submission.csv"",index=False)",code,,
+24,"## Kaggleへの提出と評価
+### 提出ファイルの作成
+画面右上の Commit ボタンをクリック。
+
+そうすることで、Kaggleの所定位置にノートブックで作成されたcsvデータがセットされる。
+
+※csv作成処理が複数コーディングされている場合は、最後にコーディングされたcsv作成処理で作成されたcsvデータがセットされる
+
+### ファイルの提出と評価
+**2018.09.28 提出方法の変更に伴う修正**  
+~~画面右上の > ボタンをクリックして、Versions タブをクリックして、Outputタブをクリック。  
+その中にある、 Submit to Competitionをクリック。~~
+
+Kernelのトップ画面(エディター画面に遷移する前の画面)に戻りOutputタブをクリック。  
+その中にある、 Submit to Competitionをクリック。
+
+score:1.16083(誤差の大きさ)",markdown,,
+25,"# 2. モデルの改善
+最初に作成したモデルは、工夫もなくデータを読み込み、scikit-learnで学習させたもの。
+
+ここからは、予測したいデータと関連の深いデータは何か？といった調査や、「データの前処理」と呼ばれるデータの加工を行い、モデルの精度をあげる為の作業を実施。
+
+その為にはデータを理解することが必要。各変数を見て、その意味を理解し、この問題との関連性を調査。時間がかかるが大事な作業。",markdown,,
+26,"## カラムの把握
+カラムの一覧を表示し、それぞれの内容を把握。そこからSalePriceに影響を与えるデータは何か？という事を、仮説をたてて考える。
+
+今回使用しているデータの詳しい説明は`../input/data_description.txt`にある。",markdown,,
+27,"# No.15
+# カラムの一覧表示
+df.columns",code,,
+28,"## SalesPriceを知る
+### 基本統計量の表示
+|項目名|意味|
+|--|--|
+|count|データ件数|
+|mean|平均|
+|std|標準偏差|
+|min|最小値|
+|25%|第1四分位数|
+|50%|第2四分位数|
+|75%|第3四分位数|
+|max|最大値|
+
+- 四分位数:データを大きさの順に並べたときに下から25％に位置する値・50%に位置する値・75%に位置する値のことをいう。[詳しくはこちら](https://atarimae.biz/archives/19162)
+
+- 標準偏差:データのばらつきの大きさを表わす指標。[詳しくはこちら](https://atarimae.biz/archives/5379)",markdown,,
+29,"# No.16
+# 基本統計量の表示
+df.SalePrice.describe()",code,,
+30,"## SalesPriceをヒストグラムで分析
+- 横軸にSalesPrice
+- 縦軸に割合",markdown,,
+31,"# No.17
+# ヒストグラムの表示
+sns.distplot(df.SalePrice)",code,,
+32,"- 160,000$位のデータの割合が最も多い
+- 極端に高い金額のものが存在する
+- 正規分布(グラフにしたときに数値の大半が中央に集中し、左右対称の釣り鐘型に「分布」するデータ)ではない
+
+### 機械学習における正規分布の効果とは
+- 予測しようとしている値が正規分布に従った方が精度がよくなる",markdown,,
+33,"## SalePriceと相関係数の高い上位10個のデータを調査
+
+### 相関係数とは
+相関関係を指し示す係数のこと
+
+### 相関関係とは
+片方の変数が変化すれば、もう一方の変数も変化するという、2つの変数間の関係性をあらわしているもの
+
+2種類のデータの（直線的な）関係性の強さを −1 から ＋1 の間の値で表しており、
+正(+)の相関の場合は、片方の変数が大きくなればもう片方の変数も大きくなり、
+負(-)の相関の場合は、片方の変数が大きくなればもう片方の変数も小さくなる
+
+なお、相関関係の強弱については下記の通り
+
+|相関係数|相関の強さ|
+|--|--|
+|±0.2 ～ ±0.4|弱い相関がある|
+|±0.4 ～ ±0.7|相関がある|
+|±0.7 ～ ±0.9|強い相関がある|
+|±0.9 ～ ±1.0|(ほぼ)完全な相関がある|
+
+### 注意点
+相関関係は因果関係と同じものではない。疑似相関の場合がある
+- 因果関係 : 2つの変数の間に原因と結果の関係があること
+- 疑似相関 : 相関係数は高いが、2つの変数の間に因果関係がないこと
+
+疑似相関については[Wiki](https://ja.wikipedia.org/wiki/%E6%93%AC%E4%BC%BC%E7%9B%B8%E9%96%A2)の例が分かりやすい
+
+",markdown,,
+34,"# No.18
+# 相関係数を算出
+corrmat = df.corr()
+corrmat",code,,
+35,"# No.19
+# 算出した相関係数を相関が高い順に上位10個のデータを表示
+
+# ヒートマップに表示させるカラムの数
+k = 10
+
+# SalesPriceとの相関が大きい上位10個のカラム名を取得
+cols = corrmat.nlargest(k, 'SalePrice')['SalePrice'].index
+
+# SalesPriceとの相関が大きい上位10個のカラムを対象に相関を算出
+# .T(Trancepose[転置行列])を行う理由は、corrcoefで相関を算出する際に、各カラムの値を行毎にまとめなければならない為
+cm = np.corrcoef(df[cols].values.T)
+
+# ヒートマップのフォントサイズを指定
+sns.set(font_scale=1.25)
+
+# 算出した相関データをヒートマップで表示
+hm = sns.heatmap(cm, cbar=True, annot=True, square=True, fmt='.2f', annot_kws={'size': 10}, yticklabels=cols.values, xticklabels=cols.values)
+plt.show()
+
+# corrmat.nlargest(k, 'SalePrice') : SalePriceの値が大きい順にkの行数だけ抽出した行と全列の行列データ
+# corrmat.nlargest(k, 'SalePrice')['SalePrice'] : SalePriceの値が大きい順にkの行数だけ抽出した抽出した行とSalePrice列だけ抽出したデータ
+# corrmat.nlargest(k, 'SalePrice')['SalePrice'].index : 行の項目を抽出。データの中身はIndex(['SalePrice', 'OverallQual', ... , 'YearBuilt'], dtype='object')
+# cols.values : カラムの値(SalesPrice, OverallQual, ...)",code,,
+36,ヒートマップからSalePriceと相関が高いのは、OverallQual と GrLivArea だと分かる。,markdown,,
+37,## 相関の強い OverallQual と GrLivArea の散布図の表示,markdown,,
+38,"# No.20
+# 散布図の表示
+sns.set()
+cols = ['SalePrice', 'OverallQual', 'GrLivArea']
+sns.pairplot(df[cols], size = 2.5)
+plt.show()",code,,
+39,"一番右上のSalesPriceとGrLivAreaの散布図を見てみると、傾向から大幅に外れているデータが２つ存在。
+
+このデータを不適切な学習データ、もしくは異常値データとみなして削除。",markdown,,
+40,"# No.21
+# 数値の大きい上位2位のデータを表示
+df.sort_values(by = 'GrLivArea', ascending = False)[:2]
+#ascending=False は'GrLivArea'の高いデータから順に並べ替えられる",code,,
+41,"# No.22
+# No.21で判明したデータのIdの値を指定して削除
+df = df.drop(index = df[df['Id'] == 1299].index)
+df = df.drop(index = df[df['Id'] == 524].index)",code,,
+42,削除されているかを確認。,markdown,,
+43,"# No.23
+# 散布図の表示
+sns.set()
+cols = ['SalePrice', 'OverallQual', 'GrLivArea']
+sns.pairplot(df[cols], size = 2.5)
+plt.show()",code,,
+44,## GrLivAreaを使用してモデルを学習,markdown,,
+45,"# No.24
+# XにGrLivArea、yにSalePriceをセット
+X = df[[""GrLivArea""]].values
+y = df[""SalePrice""].values
+
+# アルゴリズムに線形回帰(Linear Regression)を採用
+slr = LinearRegression()
+
+# fit関数で学習開始
+slr.fit(X,y)
+
+# 偏回帰係数(回帰分析において得られる回帰方程式の各説明変数の係数)を出力
+# 偏回帰係数はscikit-learnのcoefで取得
+print('傾き：{0}'.format(slr.coef_[0]))
+
+# y切片(直線とy軸との交点)を出力
+# 余談：x切片もあり、それは直線とx軸との交点を指す
+print('y切片: {0}'.format(slr.intercept_))",code,,
+46,"# No.25
+# 散布図を描画
+plt.scatter(X,y)
+
+# 折れ線グラフを描画
+plt.plot(X,slr.predict(X),color='red')
+
+# 表示
+plt.show()",code,,
+47,"# No.26
+# テストデータの読込
+df_test = pd.read_csv(""../input/test.csv"")",code,,
+48,"# No.27
+# テストデータの内容確認(最初にモデルを作成した際に追加したSalePriceが消えている事)
+df_test.head()",code,,
+49,"# No.28
+# テストデータの GrLivArea の値をセット
+X_test = df_test[[""GrLivArea""]].values
+
+# 学習済みのモデルから予測した結果をセット
+y_test_pred = slr.predict(X_test)",code,,
+50,"# No.29
+# 学習済みのモデルから予測した結果を出力
+y_test_pred",code,,
+51,"# No.30
+# df_testに SalePrice カラムを追加し、学習済みのモデルから予測した結果をセット
+df_test[""SalePrice""] = y_test_pred",code,,
+52,"# No.31
+# Id, SalePriceの2列だけ表示
+df_test[[""Id"",""SalePrice""]].head()",code,,
+53,"# No.32
+# Id, SalePriceの2列だけのファイルに変換
+df_test[[""Id"",""SalePrice""]].to_csv(""submission.csv"",index=False)",code,,
+54,"## Kaggleへの提出と評価
+### 提出ファイルの作成
+画面右上の Commit ボタンをクリック。
+
+そうすることで、Kaggleの所定位置にノートブックで作成されたcsvデータがセットされる。
+
+※csv作成処理が複数コーディングされている場合は、最後にコーディングされたcsv作成処理で作成されたcsvデータがセットされる
+
+### ファイルの提出と評価
+**2018.09.28 提出方法の変更に伴う修正**  
+~~画面右上の > ボタンをクリックして、Versions タブをクリックして、Outputタブをクリック。  
+その中にある、 Submit to Competitionをクリック。~~
+
+Kernelのトップ画面(エディター画面に遷移する前の画面)に戻りOutputタブをクリック。  
+その中にある、 Submit to Competitionをクリック。
+
+score:0.28783(OverallQualの場合は1.16083)",markdown,,
+55,"## 重回帰分析の採用
+SalePriceと相関の高いOverallQualとGrLivAreaを説明変数に使用",markdown,,
+56,"# No.33
+# XにGrLivArea、yにSalePriceをセット
+X = df[[""OverallQual"", ""GrLivArea""]].values
+y = df[""SalePrice""].values
+
+# アルゴリズムに線形回帰(Linear Regression)を採用
+slr = LinearRegression()
+
+# fit関数で学習開始
+slr.fit(X,y)
+
+# 偏回帰係数(回帰分析において得られる回帰方程式の各説明変数の係数)を出力
+# 偏回帰係数はscikit-learnのcoefで取得
+print('傾き：{0}'.format(slr.coef_))
+a1, a2 = slr.coef_
+
+# y切片(直線とy軸との交点)を出力
+# 余談：x切片もあり、それは直線とx軸との交点を指す
+print('y切片: {0}'.format(slr.intercept_))
+b = slr.intercept_",code,,
+57,"# No.34
+# 3D描画（散布図の描画）
+x, y, z = np.array(df[""OverallQual""]), np.array(df[""GrLivArea""]), np.array(df[""SalePrice""].values)
+fig = plt.figure()
+ax = Axes3D(fig)
+ax.scatter3D(np.ravel(x), np.ravel(y), np.ravel(z))
+
+# 3D描画（回帰平面の描画）
+# np.arange(0, 10, 2)は# 初項0,公差2で終点が10の等差数列(array([ 2,  4,  6,  8, 10]))
+X, Y = np.meshgrid(np.arange(0, 12, 2), np.arange(0, 6000, 1000))
+Z = a1 * X + a2 * Y + b
+ax.plot_surface(X, Y, Z, alpha = 0.5, color = ""red"") #alphaで透明度を指定
+ax.set_xlabel(""OverallQual"")
+ax.set_ylabel(""GrLivArea"")
+ax.set_zlabel(""SalePrice"")
+
+plt.show()",code,,
+58,"# No.35
+# テストデータの読込
+df_test = pd.read_csv(""../input/test.csv"")",code,,
+59,"# No.36
+# テストデータの内容確認(追加したSalePriceが消えている事)
+df_test.head()",code,,
+60,"# No.37
+# テストデータの OverallQual と GrLivArea の値をセット
+X_test = df_test[[""OverallQual"", ""GrLivArea""]].values
+
+# 学習済みのモデルから予測した結果をセット
+y_test_pred = slr.predict(X_test)",code,,
+61,"# No.38
+# 学習済みのモデルから予測した結果を出力
+y_test_pred",code,,
+62,"# No.39
+# df_testに SalePrice カラムを追加し、学習済みのモデルから予測した結果をセット
+df_test[""SalePrice""] = y_test_pred",code,,
+63,"# No.40
+# Id, SalePriceの2列だけ表示
+df_test[[""Id"",""SalePrice""]].head()",code,,
+64,"# No.41
+# Id, SalePriceの2列だけのファイルに変換
+df_test[[""Id"",""SalePrice""]].to_csv(""submission.csv"",index=False)",code,,
+65,"## Kaggleへの提出と評価
+### 提出ファイルの作成
+画面右上の Commit ボタンをクリック。
+
+そうすることで、Kaggleの所定位置にノートブックで作成されたcsvデータがセットされる。
+
+※csv作成処理が複数コーディングされている場合は、最後にコーディングされたcsv作成処理で作成されたcsvデータがセットされる
+
+### ファイルの提出と評価
+**2018.09.28 提出方法の変更に伴う修正**  
+~~画面右上の > ボタンをクリックして、Versions タブをクリックして、Outputタブをクリック。  
+その中にある、 Submit to Competitionをクリック。~~
+
+Kernelのトップ画面(エディター画面に遷移する前の画面)に戻りOutputタブをクリック。  
+その中にある、 Submit to Competitionをクリック。
+
+score:0.84138(前のscore:0.28783)",markdown,,

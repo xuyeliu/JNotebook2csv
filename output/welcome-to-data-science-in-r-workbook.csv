@@ -1,0 +1,91 @@
+ID,Source,Type,Category,Stage
+0,"This is the workbook that accompanies the ""[Welcome to Data Science in R](https://www.kaggle.com/rtatman/welcome-to-data-science-in-r)"" lesson. You'll probably find it easier to complete the exercises if you read & follow the lesson itself. :)
+
+**How do I run the code in this notebook?** You can write and run code by forking the notebook (click the blue ""Fork Notebook"" button in the header). This will open the notebook editor and create a private copy of this notebook that you can work in. In the notebook editor, you can write code in any code cell (the ones with the grey background) and run the code by either 1) clicking in the code cell and then hitting CTRL + ENTER or 2) clicking in the code cell and the clicking on the white ""play"" arrow to the left of the cell. 
+
+**How do I save my work?** Any changes you make are saved automatically as you work. You can run all the code in your notebook and save a static version by hitting the blue ""Commit & Run"" button in the upper right hand corner of the editor. 
+
+**How can I find my notebook again later?** The easiest way is to go to your user profile (https://www.kaggle.com/replace-this-with-your-username), then click on the ""Kernels"" tab. All of your kernels will be under the ""Your Work"" tab, and all the kernels you've upvoted will be under the ""Favorites"" tab.
+___",markdown,,
+1,"# Table of Contents
+
+* [Starting your machine learning project](#Starting-your-machine-learning-project)
+* [Selecting and filtering data with the Tidyverse](#Selecting-and-filtering-data-with-the-Tidyverse)
+* [Running your first model](#Running-your-first-model)
+* [How do we know if our model is good?](#How-do-we-know-if-our-model-is-good?)
+* [Underfitting/overfitting and improving your model](#Underfitting/overfitting-and-improving-your-model)
+* [A different type of model: Random forests](#A-different-type-of-model:-Random-forests)",markdown,,
+2,"# Starting your machine learning project
+
+I've started off by reading your data in for you. Make sure you run the first cell before you try to run any others!",markdown,,
+3,"# load in the tidyverse package
+library(tidyverse)
+
+# read the data and store data in a tibble
+iowa_data <- read_csv(""../input/train.csv"") 
+
+# make sure Condition1 is a factor & not a char
+iowa_data$Condition1 <- as.factor(iowa_data$Condition1)",code,,
+4,"# Your turn: summarize the iowa_data dataframe
+",code,,
+5,# Running your first model,markdown,,
+6,"Now it's time for you to define and fit a model for your data.
+1. Select the target variable you want to predict. You can get a list of the columns in a data frame using the function col_names(), which is done for you in the cell below.
+2. Fit a model that can predict your target variable using the following predictors: 
+    * LotArea
+    * YearBuilt
+    * Condition1 (how close to the main road the house is)
+    * FullBath
+    * BedroomAbvGr
+    * TotRmsAbvGrd
+
+3. Make a few predictions with the predict() function and print them out.
+4. Optional: Plot the decision ",markdown,,
+7,"# Your turn: build a model to predict housing prices in Iowa
+
+# library for building decision trees
+library(rpart)
+
+# print a list of the column names
+names(iowa_data)",code,,
+8,# How do we know if our model is good?,markdown,,
+9,"# Your turn: split your training data into test & training sets
+
+# Fit a new model to your training set...
+
+
+# and evaluate it on your test set. Did the error get larger or smaller?
+
+
+",code,,
+10,"# Underfitting/overfitting and improving your model
+
+Use a for loop that tries different values of *maxdepth* and calls the *get_mae* function on each to find the ideal number of leaves for your Iowa data.",markdown,,
+11,"# a function to get the maximum average error for a given max depth. You should pass in
+# the target as the name of the target column and the predictors as vector where
+# each item in the vector is the name of the column
+get_mae <- function(maxdepth, target, predictors, training_data, testing_data){
+    
+    # turn the predictors & target into a formula to pass to rpart()
+    predictors <- paste(predictors, collapse=""+"")
+    formula <- as.formula(paste(target,""~"",predictors,sep = """"))
+    
+    # build our model
+    model <- rpart(formula, data = training_data,
+                   control = rpart.control(maxdepth = maxdepth))
+    # get the mae
+    mae <- mae(model, testing_data)
+    return(mae)
+}",code,,
+12,"# Your turn: use the get_mae function to find the maxdepth that leads to the 
+# lowest mean average error for this dataset",code,,
+13,"# A different type of model: Random forests
+
+Now it's your turn to fit a randomForest on your data. You're going to need to read in the randomForest library to do this, so be sure to run the first cell before you try to make a call to the randomForest() function or you'll get an error!",markdown,,
+14,"# read in the library we'll use for random forests
+library(randomForest)",code,,
+15,"# Your turn: Train a random forest using the same features as you used
+# to train your original decision tree.
+
+
+# Check out the MAE. Did you see an improvement over your original model?",code,,

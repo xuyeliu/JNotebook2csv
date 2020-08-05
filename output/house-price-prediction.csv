@@ -1,0 +1,198 @@
+ID,Source,Type,Category,Stage
+0,"#loading need libraries
+import numpy as np
+import seaborn as sns
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy import stats
+%matplotlib inline",code,,
+1,"#Load data for train and test
+train = pd.read_csv('../input/train.csv')",code,,
+2,train.head(),code,,
+3,"#shape of train data
+train.shape",code,,
+4,"#you can also check the data set information using the info() command. 
+train.info()",code,,
+5,"### Target variable 
+Some analysis on target variable",markdown,,
+6,"plt.subplots(figsize=(12,9))
+sns.distplot(train['SalePrice'], fit=stats.norm)
+
+# Get the fitted parameters used by the function
+
+(mu, sigma) = stats.norm.fit(train['SalePrice'])
+
+# plot with the distribution
+
+plt.legend(['Normal dist. ($\mu=$ {:.2f} and $\sigma=$ {:.2f} )'.format(mu, sigma)], loc='best')
+plt.ylabel('Frequency')
+
+#Probablity plot
+
+fig = plt.figure()
+stats.probplot(train['SalePrice'], plot=plt)
+plt.show()",code,,
+7,"This target varibale is right skewed. Now, we need to tranform this variable and make it normal distribution.
+
+For more information about that [click here](http://whatis.techtarget.com/definition/skewness)",markdown,,
+8,#### Here we use log for target variable to make more normal distribution,markdown,,
+9,"#we use log function which is in numpy
+train['SalePrice'] = np.log1p(train['SalePrice'])
+
+#Check again for more normal distribution
+
+plt.subplots(figsize=(12,9))
+sns.distplot(train['SalePrice'], fit=stats.norm)
+
+# Get the fitted parameters used by the function
+
+(mu, sigma) = stats.norm.fit(train['SalePrice'])
+
+# plot with the distribution
+
+plt.legend(['Normal dist. ($\mu=$ {:.2f} and $\sigma=$ {:.2f} )'.format(mu, sigma)], loc='best')
+plt.ylabel('Frequency')
+
+#Probablity plot
+
+fig = plt.figure()
+stats.probplot(train['SalePrice'], plot=plt)
+plt.show()",code,,
+10,### Check the missing values,markdown,,
+11,"#Let's check if the data set has any missing values. 
+train.columns[train.isnull().any()]",code,,
+12,"#plot of missing value attributes
+plt.figure(figsize=(12, 6))
+sns.heatmap(train.isnull())
+plt.show()",code,,
+13,"#missing value counts in each of these columns
+Isnull = train.isnull().sum()/len(train)*100
+Isnull = Isnull[Isnull>0]
+Isnull.sort_values(inplace=True, ascending=False)
+Isnull",code,,
+14,### Visualising missing values,markdown,,
+15,"#Convert into dataframe
+Isnull = Isnull.to_frame()",code,,
+16,Isnull.columns = ['count'],code,,
+17,Isnull.index.names = ['Name'],code,,
+18,Isnull['Name'] = Isnull.index,code,,
+19,"#plot Missing values
+plt.figure(figsize=(13, 5))
+sns.set(style='whitegrid')
+sns.barplot(x='Name', y='count', data=Isnull)
+plt.xticks(rotation = 90)
+plt.show()",code,,
+20,### Corralation between train attributes,markdown,,
+21,"#Separate variable into new dataframe from original dataframe which has only numerical values
+#there is 38 numerical attribute from 81 attributes
+train_corr = train.select_dtypes(include=[np.number])",code,,
+22,train_corr.shape,code,,
+23,"#Delete Id because that is not need for corralation plot
+del train_corr['Id']",code,,
+24,"#Coralation plot
+corr = train_corr.corr()
+plt.subplots(figsize=(20,9))
+sns.heatmap(corr, annot=True)",code,,
+25,#### Top 50% Corralation  train attributes  with sale-price ,markdown,,
+26,"top_feature = corr.index[abs(corr['SalePrice']>0.5)]
+plt.subplots(figsize=(12, 8))
+top_corr = train[top_feature].corr()
+sns.heatmap(top_corr, annot=True)
+plt.show()",code,,
+27,Here OverallQual is highly correlated with target feature of saleprice by 82%,markdown,,
+28,"#unique value of OverallQual
+train.OverallQual.unique()",code,,
+29,"sns.barplot(train.OverallQual, train.SalePrice)",code,,
+30,"#boxplot
+plt.figure(figsize=(18, 8))
+sns.boxplot(x=train.OverallQual, y=train.SalePrice)",code,,
+31,"col = ['SalePrice', 'OverallQual', 'GrLivArea', 'GarageCars', 'TotalBsmtSF', 'FullBath', 'TotRmsAbvGrd', 'YearBuilt']
+sns.set(style='ticks')
+sns.pairplot(train[col], size=3, kind='reg')",code,,
+32,"print(""Find most important features relative to target"")
+corr = train.corr()
+corr.sort_values(['SalePrice'], ascending=False, inplace=True)
+corr.SalePrice",code,,
+33,### Imputting missing values,markdown,,
+34,"# PoolQC has missing value ratio is 99%+. So, there is fill by None
+train['PoolQC'] = train['PoolQC'].fillna('None')",code,,
+35,"#Arround 50% missing values attributes have been fill by None
+train['MiscFeature'] = train['MiscFeature'].fillna('None')
+train['Alley'] = train['Alley'].fillna('None')
+train['Fence'] = train['Fence'].fillna('None')
+train['FireplaceQu'] = train['FireplaceQu'].fillna('None')",code,,
+36,"#Group by neighborhood and fill in missing value by the median LotFrontage of all the neighborhood
+train['LotFrontage'] = train.groupby(""Neighborhood"")[""LotFrontage""].transform(
+    lambda x: x.fillna(x.median()))",code,,
+37,"#GarageType, GarageFinish, GarageQual and GarageCond these are replacing with None
+for col in ['GarageType', 'GarageFinish', 'GarageQual', 'GarageCond']:
+    train[col] = train[col].fillna('None')",code,,
+38,"#GarageYrBlt, GarageArea and GarageCars these are replacing with zero
+for col in ['GarageYrBlt', 'GarageArea', 'GarageCars']:
+    train[col] = train[col].fillna(int(0))",code,,
+39,"#BsmtFinType2, BsmtExposure, BsmtFinType1, BsmtCond, BsmtQual these are replacing with None
+for col in ('BsmtFinType2', 'BsmtExposure', 'BsmtFinType1', 'BsmtCond', 'BsmtQual'):
+    train[col] = train[col].fillna('None')",code,,
+40,"#MasVnrArea : replace with zero
+train['MasVnrArea'] = train['MasVnrArea'].fillna(int(0))",code,,
+41,"#MasVnrType : replace with None
+train['MasVnrType'] = train['MasVnrType'].fillna('None')",code,,
+42,"#There is put mode value 
+train['Electrical'] = train['Electrical'].fillna(train['Electrical']).mode()[0]",code,,
+43,"#There is no need of Utilities
+train = train.drop(['Utilities'], axis=1)",code,,
+44,"#Checking there is any null value or not
+plt.figure(figsize=(10, 5))
+sns.heatmap(train.isnull())",code,,
+45,"## Now, there is no any missing values",markdown,,
+46,#### Encoding str to int,markdown,,
+47,"cols = ('FireplaceQu', 'BsmtQual', 'BsmtCond', 'GarageQual', 'GarageCond', 
+        'ExterQual', 'ExterCond','HeatingQC', 'PoolQC', 'KitchenQual', 'BsmtFinType1', 
+        'BsmtFinType2', 'Functional', 'Fence', 'BsmtExposure', 'GarageFinish', 'LandSlope',
+        'LotShape', 'PavedDrive', 'Street', 'Alley', 'CentralAir', 'MSSubClass', 'OverallCond', 
+        'YrSold', 'MoSold', 'MSZoning', 'LandContour', 'LotConfig', 'Neighborhood',
+        'Condition1', 'Condition2', 'BldgType', 'HouseStyle', 'RoofStyle', 'RoofMatl', 'Exterior1st',
+        'Exterior2nd', 'MasVnrType', 'MasVnrArea', 'Foundation', 'GarageType', 'MiscFeature', 
+        'SaleType', 'SaleCondition', 'Electrical', 'Heating')",code,,
+48,"from sklearn.preprocessing import LabelEncoder
+for c in cols:
+    lbl = LabelEncoder() 
+    lbl.fit(list(train[c].values)) 
+    train[c] = lbl.transform(list(train[c].values))",code,,
+49,#### Prepraring data for prediction,markdown,,
+50,"#Take targate variable into y
+y = train['SalePrice']",code,,
+51,"#Delete the saleprice
+del train['SalePrice']",code,,
+52,"#Take their values in X and y
+X = train.values
+y = y.values",code,,
+53,"# Split data into train and test formate
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=7)",code,,
+54,### Linear Regression,markdown,,
+55,"#Train the model
+from sklearn import linear_model
+model = linear_model.LinearRegression()",code,,
+56,"#Fit the model
+model.fit(X_train, y_train)",code,,
+57,"#Prediction
+print(""Predict value "" + str(model.predict([X_test[142]])))
+print(""Real value "" + str(y_test[142]))",code,,
+58,"#Score/Accuracy
+print(""Accuracy --> "", model.score(X_test, y_test)*100)",code,,
+59,### RandomForestRegression,markdown,,
+60,"#Train the model
+from sklearn.ensemble import RandomForestRegressor
+model = RandomForestRegressor(n_estimators=1000)",code,,
+61,"#Fit
+model.fit(X_train, y_train)",code,,
+62,"#Score/Accuracy
+print(""Accuracy --> "", model.score(X_test, y_test)*100)",code,,
+63,### GradientBoostingRegressor,markdown,,
+64,"#Train the model
+from sklearn.ensemble import GradientBoostingRegressor
+GBR = GradientBoostingRegressor(n_estimators=100, max_depth=4)",code,,
+65,"#Fit
+GBR.fit(X_train, y_train)",code,,
+66,"print(""Accuracy --> "", GBR.score(X_test, y_test)*100)",code,,

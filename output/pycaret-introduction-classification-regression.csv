@@ -1,0 +1,112 @@
+ID,Source,Type,Category,Stage
+0,"# Introduction to PyCaret - An open source low-code ML library
+
+## This notebook consists 2 parts
+ - Classification part using Titanic DataSet
+ - Regression part using House Price Regression DataSet",markdown,,
+1,"![](https://pycaret.org/wp-content/uploads/2020/03/Divi93_43.png)
+
+You can reach pycaret website and documentation from https://pycaret.org
+
+PyCaret is an open source, low-code machine learning library in Python that allows you to go from preparing your data to deploying your model within seconds in your choice of notebook environment.
+
+PyCaret being a low-code library makes you more productive. With less time spent coding, you and your team can now focus on business problems.
+
+PyCaret is simple and easy to use machine learning library that will help you to perform end-to-end ML experiments with less lines of code. 
+
+PyCaret is a business ready solution. It allows you to do prototyping quickly and efficiently from your choice of notebook environment.
+",markdown,,
+2,# let's install pycaret ! ,markdown,,
+3,!pip install pycaret,code,,
+4,"# Part 1 Classification
+
+![](https://www.sciencealert.com/images/articles/processed/titanic-1_1024.jpg)",markdown,,
+5,# We start by loading the libraries,markdown,,
+6,"import numpy as np 
+import pandas as pd ",code,,
+7,# Read our files,markdown,,
+8,"train = pd.read_csv('../input/titanic/train.csv')
+test  = pd.read_csv('../input/titanic/test.csv')
+sub   = pd.read_csv('../input/titanic/gender_submission.csv')",code,,
+9,# Import whole classification,markdown,,
+10,from pycaret.classification import *,code,,
+11,# let's see what we're dealing with,markdown,,
+12,train.head(),code,,
+13,train.info(),code,,
+14,# Set up our dataset (preprocessing),markdown,,
+15,"clf1 = setup(data = train, 
+             target = 'Survived',
+             numeric_imputation = 'mean',
+             categorical_features = ['Sex','Embarked'], 
+             ignore_features = ['Name','Ticket','Cabin'],
+             silent = True)
+
+#quite intuitive isn't it ?",code,,
+16,# Compare the models,markdown,,
+17,compare_models(),code,,
+18,# let's create a Light GBM Model,markdown,,
+19,lgbm  = create_model('lightgbm')      ,code,,
+20,# Let's tune it!,markdown,,
+21,tuned_lightgbm = tune_model('lightgbm'),code,,
+22,# Learning Curve,markdown,,
+23,"plot_model(estimator = tuned_lightgbm, plot = 'learning')",code,,
+24,# AUC Curve,markdown,,
+25,"plot_model(estimator = tuned_lightgbm, plot = 'auc')",code,,
+26,# Confusion Matrix,markdown,,
+27,"plot_model(estimator = tuned_lightgbm, plot = 'confusion_matrix')",code,,
+28,# Feature Importance,markdown,,
+29,"plot_model(estimator = tuned_lightgbm, plot = 'feature')",code,,
+30,# whole thing!,markdown,,
+31,evaluate_model(tuned_lightgbm),code,,
+32,# Interpretation,markdown,,
+33,interpret_model(tuned_lightgbm),code,,
+34,# Predictions,markdown,,
+35,"predict_model(tuned_lightgbm, data=test)",code,,
+36,"predictions = predict_model(tuned_lightgbm, data=test)
+predictions.head()",code,,
+37,"sub['Survived'] = round(predictions['Score']).astype(int)
+sub.to_csv('submission.csv',index=False)
+sub.head()",code,,
+38,# Extra: Blending made easy!,markdown,,
+39,"logr  = create_model('lr');      
+xgb   = create_model('xgboost');            
+
+#blending 3 models
+blend = blend_models(estimator_list=[tuned_lightgbm,logr,xgb])",code,,
+40,# Part2 - Regression,markdown,,
+41,![](https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcSYeyNpaoAW-3rFX9-ORmiJ-uLAAswYBRhszs2QzllV7MCfFPvk&usqp=CAU),markdown,,
+42,# Import Whole Regression,markdown,,
+43,from pycaret.regression import *,code,,
+44,# let's see the data,markdown,,
+45,"train = pd.read_csv('../input/house-prices-advanced-regression-techniques/train.csv')
+test  = pd.read_csv('../input/house-prices-advanced-regression-techniques/test.csv')
+sample= pd.read_csv('../input/house-prices-advanced-regression-techniques/sample_submission.csv')",code,,
+46,train.head(),code,,
+47,train.info(),code,,
+48,# Set up our dataset (preprocessing),markdown,,
+49,"reg = setup(data = train, 
+             target = 'SalePrice',
+             numeric_imputation = 'mean',
+             categorical_features = ['MSZoning','Exterior1st','Exterior2nd','KitchenQual','Functional','SaleType',
+                                     'Street','LotShape','LandContour','LotConfig','LandSlope','Neighborhood',   
+                                     'Condition1','Condition2','BldgType','HouseStyle','RoofStyle','RoofMatl',    
+                                     'MasVnrType','ExterQual','ExterCond','Foundation','BsmtQual','BsmtCond',   
+                                     'BsmtExposure','BsmtFinType1','BsmtFinType2','Heating','HeatingQC','CentralAir',   
+                                     'Electrical','GarageType','GarageFinish','GarageQual','GarageCond','PavedDrive',
+                                     'SaleCondition']  , 
+             ignore_features = ['Alley','PoolQC','MiscFeature','Fence','FireplaceQu','Utilities'],
+             normalize = True,
+             silent = True)",code,,
+50,# let's compare different regression models!,markdown,,
+51,compare_models(),code,,
+52,# let's do CatBoost,markdown,,
+53,cb = create_model('catboost'),code,,
+54,# gotta tune it,markdown,,
+55,tuned_cb = tune_model('catboost'),code,,
+56,# SHAP Values (impact on model output),markdown,,
+57,interpret_model(tuned_cb),code,,
+58,"predictions = predict_model(tuned_cb, data = test)
+sample['SalePrice'] = predictions['Label']
+sample.to_csv('submission_house_price.csv',index=False)
+sample.head()",code,,
+59,# thank you very much for checking my notebook!,markdown,,

@@ -1,0 +1,131 @@
+ID,Source,Type,Category,Stage
+0,"<h2>Introduction</h2>
+
+Ask a home buyer to describe their dream house, and they probably won't begin with the height of the basement ceiling or the proximity to an east-west railroad. But this playground competition's dataset proves that much more influences price negotiations than the number of bedrooms or a white-picket fence.
+
+With 79 explanatory variables describing (almost) every aspect of residential homes in Ames, Iowa, this will predict the final price of each home.
+
+Our goal is to have above 90% accuracy",markdown,,
+1,"import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns",code,,
+2,"from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.linear_model import Lasso
+from sklearn.preprocessing import MinMaxScaler",code,,
+3,"df  = pd.read_csv('../input/house-prices-advanced-regression-techniques/train.csv')
+df.head()",code,,
+4,<h2>I - Exploratory Data Analysis</h2>,markdown,,
+5,"<h3>Check the correlation of all columns vs the label</h3>
+<h5>Columns with the highest correlation with SalePrice</h5>",markdown,,
+6,corr = df.corr()['SalePrice'].sort_values(ascending=False).head(20).to_frame(),code,,
+7,"plt.figure(figsize=(10,5))
+sns.heatmap(corr)",code,,
+8,,code,,
+9,<h4>Plot of OverallQual vs SalePrice</h4>,markdown,,
+10,"plt.figure(figsize=(15,10))
+sns.jointplot(x='OverallQual', y='SalePrice', data=df)",code,,
+11,<h4>Plot of GrLivArea vs SalePrice</h4>,markdown,,
+12,"plt.figure(figsize=(15,10))
+sns.jointplot(x='GrLivArea', y='SalePrice', data=df)",code,,
+13,,code,,
+14,"plt.figure(figsize=(15,10))
+sns.countplot(x='Neighborhood', data=df, order=df['Neighborhood'].value_counts().index)
+plt.xticks(rotation=60)",code,,
+15,,code,,
+16,**Neighborhood VS Saleprice**,markdown,,
+17,"Neighborhood = dict(zip(df['Neighborhood'].unique().tolist(), range(len(df['Neighborhood'].unique().tolist()))))
+df.replace({'Neighborhood': Neighborhood}, inplace=True)
+plt.figure(figsize=(15,10))
+sns.barplot(x='Neighborhood', y='SalePrice', data=df)
+plt.xlabel('Neighborhood')
+plt.xticks([*range(0, len(Neighborhood))], Neighborhood, rotation=60)",code,,
+18,**House Style VS Sale Price**,markdown,,
+19,"HouseStyle = dict(zip(df['HouseStyle'].unique().tolist(), range(len(df['HouseStyle'].unique().tolist()))))
+df.replace({'HouseStyle': HouseStyle}, inplace=True)
+plt.figure(figsize=(15,10))
+sns.barplot(x='HouseStyle', y='SalePrice', data=df)
+plt.xlabel('HouseStyle')
+plt.xticks([*range(0, len(HouseStyle))], HouseStyle, rotation=60)",code,,
+20,**Basement VS Sale Price**,markdown,,
+21,"BsmtFinType1 = dict(zip(df['BsmtFinType1'].unique().tolist(), range(len(df['BsmtFinType1'].unique().tolist()))))
+df.replace({'BsmtFinType1': BsmtFinType1}, inplace=True)
+plt.figure(figsize=(15,10))
+sns.barplot(x='BsmtFinType1', y='SalePrice', data=df)
+plt.xlabel('BsmtFinType1')
+plt.xticks([*range(0, len(BsmtFinType1))], BsmtFinType1, rotation=60)",code,,
+22,**Building Type VS Sale Price**,markdown,,
+23,"BldgType = dict(zip(df['BldgType'].unique().tolist(), range(len(df['BldgType'].unique().tolist()))))
+df.replace({'BldgType': BldgType}, inplace=True)
+plt.figure(figsize=(15,10))
+sns.barplot(x='BldgType', y='SalePrice', data=df)
+plt.xlabel('BldgType')
+plt.xticks([*range(0, len(BldgType))], BldgType, rotation=60)",code,,
+24,<h2>II - Feature Engineering</h2>,markdown,,
+25,**We need to do something about the NA values**,markdown,,
+26,"plt.figure(figsize=(15,10))
+df.isnull().mean().sort_values(ascending=False).plot()",code,,
+27,"df['FireplaceQu'] = df['FireplaceQu'].fillna(value='NF')
+df.drop(columns=['PoolQC', 'MiscFeature', 'Alley', 'Fence'], inplace=True)
+df['LotFrontage'] = df['LotFrontage'].fillna(value=df['LotFrontage'].mean())
+df['GarageType'] = df['GarageType'].fillna(value='NoGar')
+df['GarageYrBlt'] = df['GarageYrBlt'].fillna(value=df['GarageYrBlt'].mean())
+df['GarageQual'] = df['GarageQual'].fillna(value='NoGar')
+df['GarageFinish'] = df['GarageFinish'].fillna(value='NoGar')
+df['GarageCond'] = df['GarageCond'].fillna(value='NoGar')
+df['BsmtFinType2'] = df['BsmtFinType2'].fillna(value='NoBasement')
+df['BsmtExposure'] = df['BsmtExposure'].fillna(value='NoBasement')
+df['BsmtQual'] = df['BsmtQual'].fillna(value='NoBasement')
+df['BsmtCond'] = df['BsmtCond'].fillna(value='NoBasement')
+df['MasVnrType'] = df['MasVnrType'].fillna(value='None')
+df['MasVnrArea'] = df['MasVnrArea'].fillna(value=0.0)
+
+Electrical = dict(zip(df['Electrical'].unique().tolist(), range(len(df['Electrical'].unique().tolist()))))
+df.replace({'Electrical': Electrical}, inplace=True)
+df['Electrical'] = df['Electrical'].fillna(value=0)",code,,
+28,df.isnull().mean().sort_values(ascending=False),code,,
+29,,code,,
+30,**Convert string values to a number representation for training**,markdown,,
+31,"for column in df.columns:
+    if(df[column].dtype == 'object'):
+        df.replace({column: dict(zip(df[column].unique().tolist(), range(len(df[column].unique().tolist()))))}, inplace=True)
+",code,,
+32,df.head(),code,,
+33,**Create more feature**,markdown,,
+34,"df['totalArea'] = df['TotalBsmtSF'] + df['1stFlrSF'] + df['2ndFlrSF'] + df['GrLivArea'] + df['GarageArea']
+df['Bathrooms'] = df['FullBath'] + df['HalfBath'] * 0.5
+df['Year average'] = (df['YearRemodAdd'] + df['YearBuilt']) / 2",code,,
+35,> **Correlations of the new features**,markdown,,
+36,"new_corr = pd.DataFrame({'Feature Name': ['Total Area', 'Bathrooms', 'Year Average'], 
+                         'Corr': [df['totalArea'].corr(df['SalePrice']), df['Bathrooms'].corr(df['SalePrice']), df['Year average'].corr(df['SalePrice'])]})
+new_corr",code,,
+37,<h2>III - Training</h2>,markdown,,
+38,"y = df['SalePrice']
+X = df.drop(columns='SalePrice')
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=101)",code,,
+39,"scaler= MinMaxScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)",code,,
+40,"models = {
+    'linear regression': LinearRegression(),
+    'gradient boosting regressor': GradientBoostingRegressor(n_estimators=2000, max_depth=1),
+    'lasso regression': Lasso()
+}",code,,
+41,"score_df = pd.DataFrame({'Model': [], 'Accuracy': []})
+
+for key, value in models.items():
+    model = value
+    model.fit(X_train,y_train)
+    score = model.score(X_test, y_test)
+    
+    score_df = score_df.append({
+        'Model': key,
+        'Accuracy': score * 100
+    }, ignore_index=True)",code,,
+42,score_df,code,,
+43,<h2>IV - Conclusion</h2>,markdown,,
+44,"* Gradient Boosting Regressor helps us achieve 90% score accuracy
+* Adding total area feature helps!",markdown,,
+45,,code,,

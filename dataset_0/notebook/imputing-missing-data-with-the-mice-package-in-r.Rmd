@@ -1,0 +1,164 @@
+---
+title: "Impute Housing Data"
+author: "Troy Walters"
+date: "October 16, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Missing data is a significant problem in this dataset. Because the amount of training data in this competition is so small, filling in this missing data is crucial to earning a good score on the leaderboard. As a result, I think that feature engineering and missing data imputation are significantly more important for doing well in this competition than modelling. If we were to simply exclude variables with missing data from our model, we are leaving a lot of crucial information on the table. 
+
+BUt filling in missing data in this dataset is not so trivial. Some of the variables have missing data for almost every observation. Some variables have a considerable number of missing values. And some variables have only a small number of missing values. With the assistance of the mice package, we are going to do some extensive imputation on this dataset. 
+
+```{r, message=FALSE}
+
+library(Amelia)
+library(mice)
+library(ggplot2)
+library(lattice)
+
+```
+
+
+```{r}
+
+train_raw <- read.csv('../input/train.csv')
+
+```
+
+Before we start I am going to change the type of a few variables. Although the values of the variables are numeric, I think they would be better off as factors. 
+
+```{r}
+
+train_raw$MSSubClass <- as.factor(train_raw$MSSubClass)
+train_raw$MoSold <- as.factor(train_raw$MoSold)
+train_raw$YrSold <- as.factor(train_raw$YrSold)
+
+```
+
+Let's start out by getting a high level view of what data is missing. There are a lot of variables and the best way to do this is to visualize it. This can be done very easily with the missmap function in the Amelia package:
+
+```{r, fig.width=9, fig.height=8}
+
+missmap(train_raw[-1], col=c('grey', 'steelblue'), y.cex=0.5, x.cex=0.8)
+
+# Let's also get some hard numbers
+sort(sapply(train_raw, function(x) { sum(is.na(x)) }), decreasing=TRUE)
+
+```
+
+
+Here we see that a handful of variables have missing data for almost every observation. PoolQC, MiscFeature, Alley, and Fence are missing most of their data. These may be lost causes. But some features have a more manageable number of missing observations. FireplaceQU is missing a little less than half. LotFrontage is missing 259. And a number of other variables are missing relatively few observations. 
+
+```{r}
+
+exclude <- c('PoolQC', 'MiscFeature', 'Alley', 'Fence')
+include <- setdiff(names(train_raw), exclude)
+
+train_raw <- train_raw[include]
+
+```
+
+If we can reasonably impute them we will have a lot more data to feed to a model that we would otherwise have to throw out. Enter the mice package.
+
+Here I use the mice function, the main workhorse of the mice package. Mice stands for multiple imputation by chained equations. The arguments I am using are the name of the dataset on which we wish to impute missing data. the 'm' argument indicates how many rounds of imputation we want to do. Often we will want to do several and pool the results. For simplicity however, I am just going to do one for now. The 'method' argument indicates which of the many methods for imputation we wish to use. We can specify one method, in which case that method will be used for all the variables. We can also specify method individually for each variable. Alternatively we can specify a default method for each data type (numeric, logical, ordered factor.) Here I specify 'cart' as the only method. CART stands for classification and regression trees, otherwise know as decision trees. Most of you will be familiar with these. If not, I suggest reading more [here](http://www.stat.cmu.edu/~cshalizi/350/lectures/22/lecture-22.pdf). Fortunately cart will work for all variable types, which makes it very convenient. 
+
+```{r, message+FALSE}
+
+imp.train_raw <- mice(train_raw, m=1, method='cart', printFlag=FALSE)
+
+```
+
+Our imputation procedure has completed. Before we use our data for modelling, we should definitely take a look at the imputed data to make sure that it make sense. We can do some data visualization to get an idea of what our imputed data look like. For plotting purposes, I normally prefer ggplot, but the lattice package interfaces very well with the "mids" object type that the mice function returns. It allows us to easily visualize the imputed vs actual data. So we will use it instead. 
+
+First let's look at how well the LotFrontage data were imputed, since it is the only numeric variable that had missing data. LotFrontage is probably highly correlated with the LotArea variable. Let's make a scatter plot of the two:
+
+```{r}
+
+xyplot(imp.train_raw, LotFrontage ~ LotArea)
+
+
+```
+
+The imputed data (in red) appear to have a similar relationship to LotArea as the actual data (in blue). That's encouraging. 
+
+Let's look at the distribution of the imputed data. Does it have a similar distribution to the actual LotFrontage data?
+
+```{r}
+
+densityplot(imp.train_raw, ~LotFrontage)
+
+```
+
+Great. That looks reasonable as well. 
+
+Let's compare to how this would look if instead we had used a simple mean to replace NAs. Here we do the same as before, except we tell the mice function
+that we want to use the simple mean for imputing NAs in numeric columns:
+
+```{r}
+
+imp.train_raw_mean <- mice(train_raw, 
+                           m=1, 
+                           defaultMethod=c('mean', 'cart', 'cart', 'cart'),
+                           printFlag=FALSE)
+
+
+```
+
+```{r}
+
+xyplot(imp.train_raw_mean, LotFrontage ~ LotArea)
+
+```
+
+Not so great. We can see that using 'cart' was much better!
+
+Getting back to the original imputed data set, let's see if the imputed factor data make sense. For example let's look at GarageType:
+
+```{r}
+
+table(train_raw$GarageType)
+table(imp.train_raw$imp$GarageType)
+
+```
+
+Attchd and Detchd are the most common types in the data. Our imputed values reflect this. However it appears that our imputed proportions differ. 
+
+```{r}
+
+table(train_raw$GarageFinish)
+table(imp.train_raw$imp$GarageFinish)
+
+```
+
+Unf is the most common type in the data as well as in the imputed data. But Fin and RFn are estimated at a much lower rate in the imputed data. 
+
+```{r}
+
+table(train_raw$BsmtExposure)
+table(imp.train_raw$imp$BsmtExposure)
+
+```
+
+Again, a similar story for BsmtExposure. 
+
+You can check the rest of the factor variables on your own. Now we could try other methods of imputation. Or we could try panelling multiple rounds of imputed values using mice. 
+
+But let's say that we are happy with our imputed values. The last step is to merge them into our original data set. We can do this easily with the complete() function:
+
+```{r}
+
+train_complete <- complete(imp.train_raw)
+
+#Confirm no NAs
+sum(sapply(train_complete, function(x) { sum(is.na(x)) }))
+
+```
+
+No more missing values. This is only scratching the surface of what the mice package can do. I encourage you to take a look for yourself. 
+
+Thanks for reading!

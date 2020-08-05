@@ -1,0 +1,277 @@
+ID,Source,Type,Category,Stage
+0,"The aim of this notebook is to perform basic exploratory data analysis (EDA), which in this competition include:
+
+- deal with nan
+- feature selection
+- normality check
+- convert strings to categorical values via LabelEncoder
+- correlation matrix
+- feature importance
+- outlier deletion & normalization
+- dimensionality reduction
+
+I also show the basic of the so-called 'stacked-emsemble model' to boost our prediction accuracy!
+- stacked-emsemble model using 'XGBoost', 'neural network, and 'support vector machine regression (SVR)' 
+- submission",markdown,,
+1,"First, let's start with looking at what's inside of the given csv file.",markdown,,
+2,"# This Python 3 environment comes with many helpful analytics libraries installed
+# It is defined by the kaggle/python docker image: https://github.com/kaggle/docker-python
+# For example, here's several helpful packages to load in 
+
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+
+# Input data files are available in the ""../input/"" directory.
+# For example, running this (by clicking run or pressing Shift+Enter) will list the files in the input directory
+
+from subprocess import check_output
+print(check_output([""ls"", ""../input""]).decode(""utf8""))
+
+# Any results you write to the current directory are saved as output.
+
+# for visualization
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# import data
+train = pd.read_csv('../input/train.csv')
+test = pd.read_csv('../input/test.csv')
+
+train.head()",code,,
+3,There seems to be several data types. ,markdown,,
+4,print(train.dtypes),code,,
+5,"Yes, there are...but what is 'object'? Let's just have a look at one example 'SaleCondition'.",markdown,,
+6,print(train['SaleCondition'].unique()),code,,
+7,"Essentially, 'object' is string. There needs to be a way to convert string to float or int. This is where **LabelEncoder** kicks in.",markdown,,
+8,"# string label to categorical values
+from sklearn.preprocessing import LabelEncoder
+
+for i in range(train.shape[1]):
+    if train.iloc[:,i].dtypes == object:
+        lbl = LabelEncoder()
+        lbl.fit(list(train.iloc[:,i].values) + list(test.iloc[:,i].values))
+        train.iloc[:,i] = lbl.transform(list(train.iloc[:,i].values))
+        test.iloc[:,i] = lbl.transform(list(test.iloc[:,i].values))
+
+print(train['SaleCondition'].unique())",code,,
+9,"In this way we can convert strings to categorical values.
+
+Now let's see whether there are nan in the data. ",markdown,,
+10,"# search for missing data
+import missingno as msno
+msno.matrix(df=train, figsize=(20,14), color=(0.5,0,0))",code,,
+11,The white elements have nan there. There seems to be some columns containing nan. ,markdown,,
+12,"# Which columns have nan?
+print('training data+++++++++++++++++++++')
+for i in np.arange(train.shape[1]):
+    n = train.iloc[:,i].isnull().sum() 
+    if n > 0:
+        print(list(train.columns.values)[i] + ': ' + str(n) + ' nans')
+
+print('testing data++++++++++++++++++++++ ')
+for i in np.arange(test.shape[1]):
+    n = test.iloc[:,i].isnull().sum() 
+    if n > 0:
+        print(list(test.columns.values)[i] + ': ' + str(n) + ' nans')
+",code,,
+13,"Actually, there are many columns in the test set to have nan. 'LotFrontage', 'MasVnrArea' and 'GarageYrBlt' have many nans in the both sets, so we just drop them. For others, there are a few nans in each column, so we just replace them with the median of the corresponding column.",markdown,,
+14,Let's organize the data a bit better.,markdown,,
+15,"# keep ID for submission
+train_ID = train['Id']
+test_ID = test['Id']
+
+# split data for training
+y_train = train['SalePrice']
+X_train = train.drop(['Id','SalePrice'], axis=1)
+X_test = test.drop('Id', axis=1)
+
+# dealing with missing data
+Xmat = pd.concat([X_train, X_test])
+Xmat = Xmat.drop(['LotFrontage','MasVnrArea','GarageYrBlt'], axis=1)
+Xmat = Xmat.fillna(Xmat.median())
+
+# check whether there are still nan
+import missingno as msno
+msno.matrix(df=Xmat, figsize=(20,14), color=(0.5,0,0))",code,,
+16,"OK, there are no nan any more! Let's check our columns again.",markdown,,
+17,"print(Xmat.columns.values)
+print(str(Xmat.shape[1]) + ' columns')",code,,
+18,There are many '...SF'. Maybe we make a new feature which takes the sum of the all.,markdown,,
+19,"# add a new feature 'total sqfootage'
+Xmat['TotalSF'] = Xmat['TotalBsmtSF'] + Xmat['1stFlrSF'] + Xmat['2ndFlrSF']
+print('There are currently ' + str(Xmat.shape[1]) + ' columns.')",code,,
+20,"Now let's have a look at the target distribution. As this is a regression task, we want the target to be normally distributed.",markdown,,
+21,"# normality check for the target
+ax = sns.distplot(y_train)
+plt.show()",code,,
+22,"Well, it is right-skewed. We use log-transform to make them normally distributed.",markdown,,
+23,"# log-transform the dependent variable for normality
+y_train = np.log(y_train)
+
+ax = sns.distplot(y_train)
+plt.show()",code,,
+24,"This is (approximately) normal distribution! As a custom, let's have a look at correlation matrix.",markdown,,
+25,"# train and test
+X_train = Xmat.iloc[:train.shape[0],:]
+X_test = Xmat.iloc[train.shape[0]:,:]
+
+# Compute the correlation matrix
+corr = X_train.corr()
+
+# Set up the matplotlib figure
+f, ax = plt.subplots(figsize=(11, 9))
+
+# Generate a custom diverging colormap
+cmap = sns.diverging_palette(220, 10, as_cmap=True)
+
+# Draw the heatmap with the mask and correct aspect ratio
+sns.heatmap(corr, cmap=cmap, vmax=.3, center=0,
+            square=True, linewidths=.5, cbar_kws={""shrink"": .5})
+
+plt.show()",code,,
+26,Which features are important? Let a random forest regressor tell us about it.,markdown,,
+27,"# feature importance using random forest
+from sklearn.ensemble import RandomForestRegressor
+rf = RandomForestRegressor(n_estimators=80, max_features='auto')
+rf.fit(X_train, y_train)
+print('Training done using Random Forest')
+
+ranking = np.argsort(-rf.feature_importances_)
+f, ax = plt.subplots(figsize=(11, 9))
+sns.barplot(x=rf.feature_importances_[ranking], y=X_train.columns.values[ranking], orient='h')
+ax.set_xlabel(""feature importance"")
+plt.tight_layout()
+plt.show()",code,,
+28,"Surprisingly, only two features are dominant: 'OverallQual' and 'TotalSF'. So instead of using all the 77 features, maybe just using the top 30 features is good enough (dimensionality reduction, in a way).
+
+Here, we make a new feature called 'Interaction': simply the multiplication between the top 2 features. Also, we normalize the data via z-scoring.",markdown,,
+29,"# use the top 30 features only
+X_train = X_train.iloc[:,ranking[:30]]
+X_test = X_test.iloc[:,ranking[:30]]
+
+# interaction between the top 2
+X_train[""Interaction""] = X_train[""TotalSF""]*X_train[""OverallQual""]
+X_test[""Interaction""] = X_test[""TotalSF""]*X_test[""OverallQual""]
+
+# zscoring
+X_train = (X_train - X_train.mean())/X_train.std()
+X_test = (X_test - X_test.mean())/X_test.std()
+    
+# heatmap
+f, ax = plt.subplots(figsize=(11, 5))
+cmap = sns.cubehelix_palette(light=1, as_cmap=True)
+sns.heatmap(X_train, cmap=cmap)
+plt.show()",code,,
+30,"Let' see how the important features are related to our target ""SalePrice"".",markdown,,
+31,"# relation to the target
+fig = plt.figure(figsize=(12,7))
+for i in np.arange(30):
+    ax = fig.add_subplot(5,6,i+1)
+    sns.regplot(x=X_train.iloc[:,i], y=y_train)
+
+plt.tight_layout()
+plt.show()",code,,
+32,"Basically we can see clear linear relationships in many panels. We do not see a lot of outliers, which is good. Maybe let's just remove some outlier data points found in the 'totalSF' and 'GrLivArea', which are apparently out of the linear regression line.",markdown,,
+33,"# outlier deletion
+Xmat = X_train
+Xmat['SalePrice'] = y_train
+Xmat = Xmat.drop(Xmat[(Xmat['TotalSF']>5) & (Xmat['SalePrice']<12.5)].index)
+Xmat = Xmat.drop(Xmat[(Xmat['GrLivArea']>5) & (Xmat['SalePrice']<13)].index)
+
+# recover
+y_train = Xmat['SalePrice']
+X_train = Xmat.drop(['SalePrice'], axis=1)",code,,
+34,"Now it is time to have fun with the stacked-emsembling model! 
+
+The intuitive idea of 'emsembling' is that we may be able to get better prediction performance if we average predictions by multiple models, rather than relying on a single model. There are always pros and cons in machine learning algorithms, so averaging multiple model predictions may compensate one another.
+
+Here we use three models: XGBoost, Neural Network, and SVR.
+
+Let's start with XGBoost. There are some parameters in XGBoost that can be optimized. We use 'GridSearch' to explore which combination of parameters yield the best prediction in this dataset.",markdown,,
+35,"# XGBoost
+import xgboost as xgb
+from sklearn.model_selection import GridSearchCV
+
+print(""Parameter optimization"")
+xgb_model = xgb.XGBRegressor()
+reg_xgb = GridSearchCV(xgb_model,
+                   {'max_depth': [2,4,6],
+                    'n_estimators': [50,100,200]}, verbose=1)
+reg_xgb.fit(X_train, y_train)
+print(reg_xgb.best_score_)
+print(reg_xgb.best_params_)",code,,
+36,"Moving on to neural network: we simply use Keras for easy implementation of multi-layer perceptron. 
+
+We can again take advantage of grid search, but that requires Keras' wrapper 'KerasRegressor' (or 'KerasClassifier') to utilize scikit_learn's gird search. Here we try to select the best ones with respect to 'optimizer', 'batch_size', and 'epochs'. ",markdown,,
+37,"from keras.models import Sequential
+from keras.layers import Dense
+from keras.wrappers.scikit_learn import KerasRegressor
+
+def create_model(optimizer='adam'):
+    model = Sequential()
+    model.add(Dense(X_train.shape[1], input_dim=X_train.shape[1], kernel_initializer='normal', activation='relu'))
+    model.add(Dense(16, kernel_initializer='normal', activation='relu'))
+    model.add(Dense(1, kernel_initializer='normal'))
+
+    model.compile(loss='mean_squared_error', optimizer=optimizer)
+    return model
+
+model = KerasRegressor(build_fn=create_model, verbose=0)
+# define the grid search parameters
+optimizer = ['SGD','Adam']
+batch_size = [10, 30, 50]
+epochs = [10, 50, 100]
+param_grid = dict(optimizer=optimizer, batch_size=batch_size, epochs=epochs)
+reg_dl = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1)
+reg_dl.fit(X_train, y_train)
+
+print(reg_dl.best_score_)
+print(reg_dl.best_params_)",code,,
+38,"Finally we implement our last regressor, which is SVR (support vector regressior). We can do that easily using sklearn. Again, we use grid search to optimize some of the SVR's hyperparameters.",markdown,,
+39,"# SVR
+from sklearn.svm import SVR
+
+reg_svr = GridSearchCV(SVR(kernel='rbf', gamma=0.1), cv=5,
+                   param_grid={""C"": [1e0, 1e1, 1e2, 1e3],
+                               ""gamma"": np.logspace(-2, 2, 5)})
+reg_svr.fit(X_train, y_train)
+
+print(reg_svr.best_score_)
+print(reg_svr.best_params_)",code,,
+40,"Alright, so far we have three models. Emsemble methods are simply averaging predicted results across models to improve overall accuracy. This method is based on the idea that prediction by each model may be independent of one another and thus averaging predictions across models may compensate one another and yield better solution.
+
+Stacking methods are part of emsemble methods, but they use weighted averaging of predictions by models. The idea is, of course, you want to assign more weights on better models and less weights on worse ones, based on the dataset. To determine the weights, we treat predictions by models as new features (predictors) and train a linear model to predict our targets.
+
+Here is the very nice documentation about the stacked-emsemble model.
+'https://blogs.sas.com/content/subconsciousmusings/2017/05/18/stacked-ensemble-models-win-data-science-competitions/'
+
+So let's first make a new matrix where each column represents prediction by each model.",markdown,,
+41,"# second feature matrix
+X_train2 = pd.DataFrame( {'XGB': reg_xgb.predict(X_train),
+     'NN': reg_dl.predict(X_train).ravel(),
+     'SVR': reg_svr.predict(X_train),
+    })
+X_train2.head()",code,,
+42,"We train a linear regressor for this new training matrix and predict our target! We use Lasso GLM to avoid overfitting. We predict our target 'SalePrice', but do not forget to convert it back to ordinal scale! It has been in log-scale for normality. ",markdown,,
+43,"# second-feature modeling using linear regression
+from sklearn import linear_model
+
+reg = linear_model.LinearRegression()
+reg.fit(X_train2, y_train)
+
+# prediction using the test set
+X_test2 = pd.DataFrame( {'XGB': reg_xgb.predict(X_test),
+     'DL': reg_dl.predict(X_test).ravel(),
+     'SVR': reg_svr.predict(X_test),
+    })
+
+# Don't forget to convert the prediction back to non-log scale
+y_pred = np.exp(reg.predict(X_test2))",code,,
+44,"Finally, we submit our prediction!",markdown,,
+45,"# submission
+submission = pd.DataFrame({
+    ""Id"": test_ID,
+    ""SalePrice"": y_pred
+})
+submission.to_csv('houseprice.csv', index=False)",code,,
+46,"Note that, here we used a grid-search to optimize hyperparameters, but it is still not good enough because explored parameter spaces are still narrow. We could still optimize hyperparameters and go further up by:D ",markdown,,

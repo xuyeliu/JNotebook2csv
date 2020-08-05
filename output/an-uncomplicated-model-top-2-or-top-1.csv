@@ -1,0 +1,254 @@
+ID,Source,Type,Category,Stage
+0,"If you are Chinese, you can check out my [blog](https://blog.csdn.net/qq_33758867/article/details/87794848) .",markdown,,
+1,***Module Imports***,markdown,,
+2,"# data processing and visualization
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+# algorithm
+from xgboost.sklearn import XGBRegressor
+from sklearn.linear_model import LinearRegression, Lasso, Ridge, ElasticNet
+from sklearn.svm import SVR
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.tree import DecisionTreeRegressor
+# training训练
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import cross_val_score",code,,
+3,***Load Data***,markdown,,
+4,"train = pd.read_csv(""../input/train.csv"")
+test = pd.read_csv(""../input/test.csv"")
+sample_submission = pd.read_csv(""../input/sample_submission.csv"")",code,,
+5,***data analysis***,markdown,,
+6,**1、SalePrice distribution**,markdown,,
+7,sns.distplot(train.SalePrice),code,,
+8,It can be seen that SalePrice deviates from the normal distribution.We can correct this with a simple log transformation.,markdown,,
+9,sns.distplot(np.log(train.SalePrice + 1)),code,,
+10,"**2、Missing value**
+（refer to [Top 2% of LeaderBoard - Advanced FE](https://www.kaggle.com/laurenstc/top-2-of-leaderboard-advanced-fe)）",markdown,,
+11,*Splicing data and visualizing the number of missing values*,markdown,,
+12,"all_data = pd.concat((train.drop([""SalePrice""], axis=1), test))
+all_data_na = (all_data.isnull().sum() / len(all_data)) * 100
+all_data_na = all_data_na.drop(all_data_na[all_data_na == 0].index).sort_values(ascending=False)
+plt.figure(figsize=(12, 6))
+plt.xticks(rotation=""90"")
+sns.barplot(x=all_data_na.index, y=all_data_na)",code,,
+13,"**PoolQC**：PoolQC has too many missing values. According to the file, there is no swimming pool. You can use **None to fill in missing values**.In theory, the PoolArea corresponding to the missing value of PoolQC should be 0, but after observing a few PoolAreas, it is found that the test set **960, 1043, 1139** are very special. These three examples cannot be filled with None.Of the 13 data, Ex appeared 4 times, Gd appeared 4 times, and Fa appeared 2 times. According to the idea of average distribution, **there are two missing values that need to be filled with Fa**.",markdown,,
+14,"all_data[all_data.PoolArea != 0][[""PoolArea"", ""PoolQC""]]",code,,
+15,"**MiscFeature**：**delete**. According to the file, you can use None to fill in missing values.I also explored the relationship between MiscFeature and its corresponding MiscVal and GarageType, tried some filling methods, and even determined that the example in the test set 1089 should be filled with Gar2, but eventually deleting the feature works better for my model.",markdown,,
+16,"all_data[all_data.MiscVal > 10000][[""MiscFeature"", ""MiscVal""]]",code,,
+17,"**Alley**：According to the file, you can use **None to fill** in missing values.",markdown,,
+18,"**Fence**：As MiscFeature, **delete**.",markdown,,
+19,"**FireplaceQu**：According to the file, you can use **None to fill** in missing values.",markdown,,
+20,"**LotFrontage**：This is the object that many Kernels focus on, such as predicted by a useful algorithm, group by Neighborhood and filled with MICE. After my observation,** I think the more reasonable filling method is filled with LotConfig and Neighborhood**, but unfortunately, these filling methods have no effect on my model. **What really works for this model is 0**.",markdown,,
+21,"**Garage**：According to the file, **GarageType,GarageFinish,GarageQual,GarageCond fill None, GarageYrBlt,GarageCars,GarageArea fill 0**。But by observing, **there are some unusual examples in the test set that can't be filled like this. It will be filled with median and mode**. Of course, I also tried the filling method that I think is more reasonable, for example, by filling with Neighborhood and GarageType, but the effect is not ideal.",markdown,,
+22,"all_data[(all_data.GarageType.notnull()) & (all_data.GarageYrBlt.isnull())][[""Neighborhood"", ""YearBuilt"", ""YearRemodAdd"", ""GarageType"", ""GarageYrBlt"", ""GarageFinish"", ""GarageCars"", ""GarageArea"", ""GarageQual"", ""GarageCond""]]",code,,
+23,"**Bsmt**：According to the file, **fill with None or 0**. There are also some special examples below that should not be filled like this, I have tried other filling methods, but in the end I chose to fill with None or 0.",markdown,,
+24,"train.loc[[332, 948]][[""BsmtQual"", ""BsmtCond"", ""BsmtExposure"", ""BsmtFinType1"", ""BsmtFinSF1"", ""BsmtFinType2"", ""BsmtFinSF2"", ""BsmtUnfSF"", ""BsmtFullBath"", ""BsmtHalfBath""]]",code,,
+25,"test.loc[[27, 580, 725, 757, 758, 888, 1064]][[""BsmtQual"", ""BsmtCond"", ""BsmtExposure"", ""BsmtFinType1"", ""BsmtFinSF1"", ""BsmtFinType2"", ""BsmtFinSF2"", ""BsmtUnfSF"", ""BsmtFullBath"", ""BsmtHalfBath""]]",code,,
+26,"**MSZoning**：**Fill with mode value RL**. I also tried to fill by MSSubClass, but it didn't work.",markdown,,
+27,**MasVnrType**：**None**,markdown,,
+28,**MasVnrArea**：**0**,markdown,,
+29,"**Utilities**：There is no NoSeWa in the test set, basically no effect on SalePrice, **delete**.",markdown,,
+30,"plt.scatter(train.Utilities, train.SalePrice)",code,,
+31,**Missing values for the remaining features are filled with mode values**,markdown,,
+32,"**There are many ways to fill in missing values. You can try more, explore more, and find the best filling method for your model.**",markdown,,
+33,***feature engineering***,markdown,,
+34,**1、correct SalePrice with a simple log transformation.**,markdown,,
+35,"y = train[""SalePrice""]
+y = np.log(y+1)",code,,
+36,**2、Special example missing value filling**,markdown,,
+37,"# PoolQC
+test.loc[960, ""PoolQC""] = ""Fa""
+test.loc[1043, ""PoolQC""] = ""Gd""
+test.loc[1139, ""PoolQC""] = ""Fa""
+ 
+# Garage
+test.loc[666, ""GarageYrBlt""] = 1979
+test.loc[1116, ""GarageYrBlt""] = 1979
+ 
+test.loc[666, ""GarageFinish""] = ""Unf""
+test.loc[1116, ""GarageFinish""] = ""Unf""
+ 
+test.loc[1116, ""GarageCars""] = 2
+test.loc[1116, ""GarageArea""] = 480
+ 
+test.loc[666, ""GarageQual""] = ""TA""
+test.loc[1116, ""GarageQual""] = ""TA""
+ 
+test.loc[666, ""GarageCond""] = ""TA""
+test.loc[1116, ""GarageCond""] = ""TA""",code,,
+38,**3、Missing value filling**,markdown,,
+39,"# PoolQC
+train = train.fillna({""PoolQC"": ""None""})
+test = test.fillna({""PoolQC"": ""None""})
+ 
+# Alley
+train = train.fillna({""Alley"": ""None""})
+test = test.fillna({""Alley"": ""None""})
+ 
+# FireplaceQu
+train = train.fillna({""FireplaceQu"": ""None""})
+test = test.fillna({""FireplaceQu"": ""None""})
+ 
+# LotFrontage
+train = train.fillna({""LotFrontage"": 0})
+test = test.fillna({""LotFrontage"": 0})
+ 
+# Garage
+train = train.fillna({""GarageType"": ""None""})
+test = test.fillna({""GarageType"": ""None""})
+train = train.fillna({""GarageYrBlt"": 0})
+test = test.fillna({""GarageYrBlt"": 0})
+train = train.fillna({""GarageFinish"": ""None""})
+test = test.fillna({""GarageFinish"": ""None""})
+test = test.fillna({""GarageCars"": 0})
+test = test.fillna({""GarageArea"": 0})
+train = train.fillna({""GarageQual"": ""None""})
+test = test.fillna({""GarageQual"": ""None""})
+train = train.fillna({""GarageCond"": ""None""})
+test = test.fillna({""GarageCond"": ""None""})
+ 
+# Bsmt
+train = train.fillna({""BsmtQual"": ""None""})
+test = test.fillna({""BsmtQual"": ""None""})
+train = train.fillna({""BsmtCond"": ""None""})
+test = test.fillna({""BsmtCond"": ""None""})
+train = train.fillna({""BsmtExposure"": ""None""})
+test = test.fillna({""BsmtExposure"": ""None""})
+train = train.fillna({""BsmtFinType1"": ""None""})
+test = test.fillna({""BsmtFinType1"": ""None""})
+train = train.fillna({""BsmtFinSF1"": 0})
+test = test.fillna({""BsmtFinSF1"": 0})
+train = train.fillna({""BsmtFinType2"": ""None""})
+test = test.fillna({""BsmtFinType2"": ""None""})
+test = test.fillna({""BsmtFinSF2"": 0})
+test = test.fillna({""BsmtUnfSF"": 0})
+test = test.fillna({""TotalBsmtSF"": 0})
+test = test.fillna({""BsmtFullBath"": 0})
+test = test.fillna({""BsmtHalfBath"": 0})
+ 
+# MasVnr
+train = train.fillna({""MasVnrType"": ""None""})
+test = test.fillna({""MasVnrType"": ""None""})
+train = train.fillna({""MasVnrArea"": 0})
+test = test.fillna({""MasVnrArea"": 0})
+ 
+# MiscFeature,Fence,Utilities
+train = train.drop([""Fence"", ""MiscFeature"", ""Utilities""], axis=1)
+test = test.drop([""Fence"", ""MiscFeature"", ""Utilities""], axis=1)
+ 
+# other
+test = test.fillna({""MSZoning"": ""RL""})
+test = test.fillna({""Exterior1st"": ""VinylSd""})
+test = test.fillna({""Exterior2nd"": ""VinylSd""})
+train = train.fillna({""Electrical"": ""SBrkr""})
+test = test.fillna({""KitchenQual"": ""TA""})
+test = test.fillna({""Functional"": ""Typ""})
+test = test.fillna({""SaleType"": ""WD""})",code,,
+40,**4、Explore outliers and delete**(The method of exploring outliers is based on [Top 7% using ElasticNet with Interactions](https://www.kaggle.com/jack89roberts/top-7-using-elasticnet-with-interactions). I used Ridge and ElasticNet to train the training set and predict the training set. Find out the samples with unpredictable prediction results in the two algorithms as outliers),markdown,,
+41,dummies,markdown,,
+42,"train_dummies = pd.get_dummies(pd.concat((train.drop([""SalePrice"", ""Id""], axis=1), test.drop([""Id""], axis=1)), axis=0)).iloc[: train.shape[0]]
+test_dummies = pd.get_dummies(pd.concat((train.drop([""SalePrice"", ""Id""], axis=1), test.drop([""Id""], axis=1)), axis=0)).iloc[train.shape[0]:]",code,,
+43,**Use Ridge to find outliers**,markdown,,
+44,"rr = Ridge(alpha=10)
+rr.fit(train_dummies, y)
+np.sqrt(-cross_val_score(rr, train_dummies, y, cv=5, scoring=""neg_mean_squared_error"")).mean()",code,,
+45,"y_pred = rr.predict(train_dummies)
+resid = y - y_pred
+mean_resid = resid.mean()
+std_resid = resid.std()
+z = (resid - mean_resid) / std_resid
+z = np.array(z)
+outliers1 = np.where(abs(z) > abs(z).std() * 3)[0]
+outliers1",code,,
+46,"plt.figure(figsize=(6, 6))
+plt.scatter(y, y_pred)
+plt.scatter(y.iloc[outliers1], y_pred[outliers1])
+plt.plot(range(10, 15), range(10, 15), color=""red"")",code,,
+47,**Explore outliers with ElasticNet**,markdown,,
+48,"er = ElasticNet(alpha=0.001, l1_ratio=0.58)
+er.fit(train_dummies, y)
+np.sqrt(-cross_val_score(rr, train_dummies, y, cv=5, scoring=""neg_mean_squared_error"")).mean()",code,,
+49,"y_pred = er.predict(train_dummies)
+resid = y - y_pred
+mean_resid = resid.mean()
+std_resid = resid.std()
+z = (resid - mean_resid) / std_resid
+z = np.array(z)
+outliers2 = np.where(abs(z) > abs(z).std() * 3)[0]
+outliers2",code,,
+50,"plt.figure(figsize=(6, 6))
+plt.scatter(y, y_pred)
+plt.scatter(y.iloc[outliers2], y_pred[outliers2])
+plt.plot(range(10, 15), range(10, 15), color=""red"")",code,,
+51,**The point where the two algorithms predict poor results is used as the outlier**,markdown,,
+52,"outliers = []
+for i in outliers1:
+    for j in outliers2:
+        if i == j:
+            outliers.append(i)
+outliers",code,,
+53,"The output format here is a bit problematic, and the outliers are manually deleted later.",markdown,,
+54,**Delete outliers**,markdown,,
+55,"train = train.drop([30, 88, 142, 277, 328, 410, 462, 495, 523, 533, 581, 588, 628, 632, 681, 688, 710, 714, 728, 774, 812, 874, 898, 916, 968, 970, 1181, 1182, 1298, 1324, 1383, 1423, 1432, 1453])
+y = train[""SalePrice""]
+y = np.log(y+1)",code,,
+56,"***Modeling*** (Use GBDT, XGBOOST, Lasso, Ridge, and combine them)",markdown,,
+57,dummies,markdown,,
+58,"train_dummies = pd.get_dummies(pd.concat((train.drop([""SalePrice"", ""Id""], axis=1), test.drop([""Id""], axis=1)), axis=0)).iloc[: train.shape[0]]
+test_dummies = pd.get_dummies(pd.concat((train.drop([""SalePrice"", ""Id""], axis=1), test.drop([""Id""], axis=1)), axis=0)).iloc[train.shape[0]:]",code,,
+59,**GBDT**,markdown,,
+60,"gbr = GradientBoostingRegressor(max_depth=4, n_estimators=150)
+gbr.fit(train_dummies, y)
+np.sqrt(-cross_val_score(gbr, train_dummies, y, cv=5, scoring=""neg_mean_squared_error"")).mean()",code,,
+61,**XGB**,markdown,,
+62,"xgbr = XGBRegressor(max_depth=5, n_estimators=400)
+xgbr.fit(train_dummies, y)
+np.sqrt(-cross_val_score(xgbr, train_dummies, y, cv=5, scoring=""neg_mean_squared_error"")).mean()",code,,
+63,**Lasso**,markdown,,
+64,"lsr = Lasso(alpha=0.00047)
+lsr.fit(train_dummies, y)
+np.sqrt(-cross_val_score(lsr, train_dummies, y, cv=5, scoring=""neg_mean_squared_error"")).mean()",code,,
+65,**Ridge**,markdown,,
+66,"rr = Ridge(alpha=13)
+rr.fit(train_dummies, y)
+np.sqrt(-cross_val_score(rr, train_dummies, y, cv=5, scoring=""neg_mean_squared_error"")).mean()",code,,
+67,"The cross-validation score is metaphysical. Sometimes the score is increased here, but it will fall after the submission; the score is dropped here, but it is increased after the submission.",markdown,,
+68,"**Combined model** (I also tried stacking, which can improve the score, but the effect is not ideal)",markdown,,
+69,train_predict = 0.1 * gbr.predict(train_dummies) + 0.3 * xgbr.predict(train_dummies) + 0.3 * lsr.predict(train_dummies) + 0.3 * rr.predict(train_dummies),code,,
+70,This is a combination of prediction models for the training set. The training set is first combined with the prediction model because I am going to manually modify the predicted values.,markdown,,
+71,"**Manually modify the predicted value** (Refer to [Top 10 (0.10943): stacking, MICE and brutal force](https://www.kaggle.com/agehsbarg/top-10-0-10943-stacking-mice-and-brutal-force), very effective)",markdown,,
+72,**Observe the prediction effect of our model on the training set**,markdown,,
+73,"plt.figure(figsize=(6, 6))
+plt.scatter(y, train_predict)
+plt.plot(range(10, 15), range(10, 15), color=""red"")",code,,
+74,"You will see that the bottom point is not on the red line like the top point, indicating that the bottom point may not be predictive. You can manually adjust it and use the quantile to select the predicted value you want to adjust and adjust it. The parameters of the quantile and the multiples of the resizing can be adjusted to find the parameters that will give the best score.",markdown,,
+75,"q1 = pd.DataFrame(train_predict).quantile(0.0042)
+pre_df = pd.DataFrame(train_predict)
+pre_df[""SalePrice""] = train_predict
+pre_df = pre_df[[""SalePrice""]]
+pre_df.loc[pre_df.SalePrice <= q1[0], ""SalePrice""] = pre_df.loc[pre_df.SalePrice <= q1[0], ""SalePrice""] *0.99
+train_predict = np.array(pre_df.SalePrice)
+plt.figure(figsize=(6, 6))
+plt.scatter(y, train_predict)
+plt.plot(range(10, 15), range(10, 15), color=""red"")",code,,
+76,**Predict and submit**,markdown,,
+77,"test_predict = 0.1 * gbr.predict(test_dummies) + 0.3 * xgbr.predict(test_dummies) + 0.3 * lsr.predict(test_dummies) + 0.3 * rr.predict(test_dummies)
+q1 = pd.DataFrame(test_predict).quantile(0.0042)
+pre_df = pd.DataFrame(test_predict)
+pre_df[""SalePrice""] = test_predict
+pre_df = pre_df[[""SalePrice""]]
+pre_df.loc[pre_df.SalePrice <= q1[0], ""SalePrice""] = pre_df.loc[pre_df.SalePrice <= q1[0], ""SalePrice""] *0.96
+test_predict = np.array(pre_df.SalePrice)
+sample_submission[""SalePrice""] = np.exp(test_predict)-1
+sample_submission.to_csv(""1.csv"", index=False)",code,,
+78,"you can see that I finally chose a multiple of 0.96, which allowed me to achieve a good score. This submission can get a score of 0.11052, reaching top 2%.",markdown,,
+79,***summarize***,markdown,,
+80,"**1. It is very important to fill in missing values, which can effectively improve the score. You can try different filling methods. For example, the filling of three special missing value examples of PoolQC can try different combinations.**",markdown,,
+81,"**2. The exploration of outliers, the outliers proposed above are not the best for this model, you can try to add new outliers, or reduce the old outliers, there will be some outlier combination for you to increase your score again.**",markdown,,
+82,"**3. The search for redundant features, that is the first time I built the simplest model, I found it by chance. At that time, I manually tried which feature is good, which feature is bad, and found two bad features, which have been used until the end and surprisingly useful all the time. Deleting these two features will increase the score of this model again.**",markdown,,
+83,"**4. It is known from Titanic that it is useful to create some new features. Many of the kernels in the house price have also created some new features, but it is not useful for this model.**",markdown,,
+84,**5. Skew and PCA which many kernels mentioned are not useful for this model.**,markdown,,
+85,"**Finally, delete the outliers *[30, 88, 410, 462, 495, 523, 588, 628, 632, 874, 898, 968, 970, 1182, 1298, 1324, 1432]*, delete the features *LandSlope, Exterior2nd* allows this model reached 0.10955, top 1%.**",markdown,,

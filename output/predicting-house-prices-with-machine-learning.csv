@@ -1,0 +1,537 @@
+ID,Source,Type,Category,Stage
+0,"# Predicting House Prices with Machine Learning
+**Eric Kim, B.A.** - **August 2017**",markdown,,
+1,"## Introduction
+
+This notebook is going to be focused on solving the problem of predicting house prices for house buyers and house sellers.
+
+A house value is simply more than location and square footage. Like the features that make up a person, an educated party would want to know all aspects that give a house its value. 
+
+We are going to take advantage of all of the feature variables available to use and use it to analyze and predict house prices.
+
+We are going to break everything into logical steps that allow us to ensure the cleanest, most realistic data for our model to make accurate predictions from.
+
+1. Load Data and Packages
+2. Analyzing the Test Variable (Sale Price)
+3. Multivariable Analysis
+4. Impute Missing Data and Clean Data
+5. Feature Transformation/Engineering
+6. Modeling and Predictions
+",markdown,,
+2,"## 0. Understanding the Client and their Problem
+
+A benefit to this study is that we can have two clients at the same time! (Think of being a divorce lawyer for both interested parties) However, in this case, we can have both clients with no conflict of interest!
+
+Client Housebuyer: This client wants to find their next dream home with a reasonable price tag. They have their locations of interest ready. Now, they want to know if the house price matches the house value. With this study, they can understand which features (ex. Number of bathrooms, location, etc.) influence the final price of the house. If all matches, they can ensure that they are getting a fair price.
+
+Client Houseseller: Think of the average house-flipper. This client wants to take advantage of the features that influence a house price the most. They typically want to buy a house at a low price and invest on the features that will give the highest return. For example, buying a house at a good location but small square footage. The client will invest on making rooms at a small cost to get a large return. ",markdown,,
+3,## 1. Loading Data and Packages,markdown,,
+4,"import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib
+import matplotlib.pyplot as plt
+import warnings
+import xgboost as xgb
+import lightgbm as lgb
+from scipy.stats import skew
+from scipy import stats
+from scipy.stats.stats import pearsonr
+from scipy.stats import norm
+from collections import Counter
+from sklearn.linear_model import LinearRegression,LassoCV, Ridge, LassoLarsCV,ElasticNetCV
+from sklearn.model_selection import GridSearchCV, cross_val_score, learning_curve
+from sklearn.ensemble import RandomForestRegressor, AdaBoostRegressor, ExtraTreesRegressor, GradientBoostingRegressor
+from sklearn.preprocessing import StandardScaler, Normalizer, RobustScaler
+warnings.filterwarnings('ignore')
+sns.set(style='white', context='notebook', palette='deep')
+%config InlineBackend.figure_format = 'retina' #set 'png' here when working on notebook
+%matplotlib inline",code,,
+5,"# Load train and Test set
+train = pd.read_csv(""../input/train.csv"")
+test = pd.read_csv(""../input/test.csv"")",code,,
+6,"# Check the numbers of samples and features
+print(""The train data size before dropping Id feature is : {} "".format(train.shape))
+print(""The test data size before dropping Id feature is : {} "".format(test.shape))
+
+# Save the 'Id' column
+train_ID = train['Id']
+test_ID = test['Id']
+
+# Now drop the 'Id' column since it's unnecessary for the prediction process.
+train.drop(""Id"", axis = 1, inplace = True)
+test.drop(""Id"", axis = 1, inplace = True)
+
+# Check data size after dropping the 'Id' variable
+print(""\nThe train data size after dropping Id feature is : {} "".format(train.shape)) 
+print(""The test data size after dropping Id feature is : {} "".format(test.shape))",code,,
+7,So the training set has 1460 rows and 81 features. The test set has 1459 rows and 80 features.,markdown,,
+8,train.head(),code,,
+9,test.head(),code,,
+10,"From looking at the head of both sets, we can see that the only difference in features is ""Sale Price"". This makes sense because we are trying to predict it!",markdown,,
+11,"## 2. Analyzing the Test Variable (Sale Price)
+
+Let's check out the most interesting feature in this study: Sale Price. Important Note: This data is from Ames, Iowa. The location is extremely correlated with Sale Price. (I had to take a double-take at a point, since I consider myself a house-browsing enthusiast)",markdown,,
+12,"# Getting Description
+train['SalePrice'].describe()",code,,
+13,"With an average house price of $180921, it seems like I should relocated to Iowa!",markdown,,
+14,"# Plot Histogram
+sns.distplot(train['SalePrice'] , fit=norm);
+
+# Get the fitted parameters used by the function
+(mu, sigma) = norm.fit(train['SalePrice'])
+print( '\n mu = {:.2f} and sigma = {:.2f}\n'.format(mu, sigma))
+plt.legend(['Normal dist. ($\mu=$ {:.2f} and $\sigma=$ {:.2f} )'.format(mu, sigma)],
+            loc='best')
+plt.ylabel('Frequency')
+plt.title('SalePrice distribution')
+
+fig = plt.figure()
+res = stats.probplot(train['SalePrice'], plot=plt)
+plt.show()
+
+print(""Skewness: %f"" % train['SalePrice'].skew())
+print(""Kurtosis: %f"" % train['SalePrice'].kurt())",code,,
+15,"Looks like a normal distribution? Not quite! Looking at the kurtosis score, we can see that there is a very nice peak. However, looking at the skewness score, we can see that the sale prices deviate from the normal distribution. Going to have to fix this later! We want our data to be as ""normal"" as possible.",markdown,,
+16,"## 3. Multivariable Analysis
+
+Let's check out all the variables! There are two types of features in housing data, categorical and numerical. 
+
+Categorical data is just like it sounds. It is in categories. It isn't necessarily linear, but it follows some kind of pattern. For example, take a feature of ""Downtown"". The response is either ""Near"", ""Far"", ""Yes"", and ""No"".  Back then, living in downtown usually meant that you couldn't afford to live in uptown. Thus, it could be implied that downtown establishments cost less to live in. However, today, that is not the case. (Thank you, hipsters!) So we can't really establish any particular order of response to be ""better"" or ""worse"" than the other.
+
+Numerical data is data in number form. (Who could have thought!) These features are in a linear relationship with each other. For example, a 2,000 square foot place is 2 times ""bigger"" than a 1,000 square foot place. Plain and simple. Simple and clean.",markdown,,
+17,"# Checking Categorical Data
+train.select_dtypes(include=['object']).columns",code,,
+18,"# Checking Numerical Data
+train.select_dtypes(include=['int64','float64']).columns",code,,
+19,"cat = len(train.select_dtypes(include=['object']).columns)
+num = len(train.select_dtypes(include=['int64','float64']).columns)
+print('Total Features: ', cat, 'categorical', '+',
+      num, 'numerical', '=', cat+num, 'features')",code,,
+20,"With 81 features, how could we possibly tell which feature is most related to house prices? Good thing we have a correlation matrix. Let's do it!",markdown,,
+21,"# Correlation Matrix Heatmap
+corrmat = train.corr()
+f, ax = plt.subplots(figsize=(12, 9))
+sns.heatmap(corrmat, vmax=.8, square=True);",code,,
+22,"It's a nice overview, but oh man is that a lot of data to look at. Let's zoom into the top 10 features most related to Sale Price.",markdown,,
+23,"# Top 10 Heatmap
+k = 10 #number of variables for heatmap
+cols = corrmat.nlargest(k, 'SalePrice')['SalePrice'].index
+cm = np.corrcoef(train[cols].values.T)
+sns.set(font_scale=1.25)
+hm = sns.heatmap(cm, cbar=True, annot=True, square=True, fmt='.2f', annot_kws={'size': 10}, yticklabels=cols.values, xticklabels=cols.values)
+plt.show()",code,,
+24,"most_corr = pd.DataFrame(cols)
+most_corr.columns = ['Most Correlated Features']
+most_corr",code,,
+25,"Well, the most correlated feature to Sale Price is... Sale Price?!? Of course. For the other 9, they are as listed. Here is a short description of each. (Thank you, data_description.txt!)
+
+1. OverallQual: Rates the overall material and finish of the house (1 = Very Poor, 10 = Very Excellent)
+2. GrLivArea: Above grade (ground) living area square feet
+3. GarageCars: Size of garage in car capacity
+4. GarageArea: Size of garage in square feet
+5. TotalBsmtSF: Total square feet of basement area
+6. 1stFlrSF: First Floor square feet
+7. FullBath: Full bathrooms above grade
+8. TotRmsAbvGrd: Total rooms above grade (does not include bathrooms)
+9. YearBuilt: Original construction date
+
+Let's take a look at how each relates to Sale Price and do some pre-cleaning on each feature if necessary.",markdown,,
+26,"# Overall Quality vs Sale Price
+var = 'OverallQual'
+data = pd.concat([train['SalePrice'], train[var]], axis=1)
+f, ax = plt.subplots(figsize=(8, 6))
+fig = sns.boxplot(x=var, y=""SalePrice"", data=data)
+fig.axis(ymin=0, ymax=800000);",code,,
+27,What! People pay more for better quality? Nothing new here. Let's move on.,markdown,,
+28,"# Living Area vs Sale Price
+sns.jointplot(x=train['GrLivArea'], y=train['SalePrice'], kind='reg')",code,,
+29,"It makes sense that people would pay for the more living area. What doesn't make sense is the two datapoints in the bottom-right of the plot. 
+
+ We need to take care of this! What we will do is remove these outliers manually. ",markdown,,
+30,"# Removing outliers manually (Two points in the bottom right)
+train = train.drop(train[(train['GrLivArea']>4000) 
+                         & (train['SalePrice']<300000)].index).reset_index(drop=True)",code,,
+31,"# Living Area vs Sale Price
+sns.jointplot(x=train['GrLivArea'], y=train['SalePrice'], kind='reg')",code,,
+32,Nice! We got a 0.02 point increase in the Pearson-R Score.,markdown,,
+33,"# Garage Area vs Sale Price
+sns.boxplot(x=train['GarageCars'], y=train['SalePrice'])",code,,
+34,4-car garages result in less Sale Price? That doesn't make much sense. Let's remove those outliers.,markdown,,
+35,"# Removing outliers manually (More than 4-cars, less than $300k)
+train = train.drop(train[(train['GarageCars']>3) 
+                         & (train['SalePrice']<300000)].index).reset_index(drop=True)",code,,
+36,"# Garage Area vs Sale Price
+sns.boxplot(x=train['GarageCars'], y=train['SalePrice'])",code,,
+37,That looks much better. Note: removal of data is totally discretionary and may or may not help in modeling. Use at your own preference.,markdown,,
+38,"# Garage Area vs Sale Price
+sns.jointplot(x=train['GarageArea'], y=train['SalePrice'], kind='reg')",code,,
+39,Again with the bottom two data-points. Let's remove those outliers.,markdown,,
+40,"# Removing outliers manually (More than 1000 sqft, less than $300k)
+train = train.drop(train[(train['GarageArea']>1000) 
+                         & (train['SalePrice']<300000)].index).reset_index(drop=True)",code,,
+41,"# Garage Area vs Sale Price
+sns.jointplot(x=train['GarageArea'], y=train['SalePrice'], kind='reg')",code,,
+42,"Only 0.01 point Pearson-R Score increase, but looks much better!",markdown,,
+43,"# Basement Area vs Sale Price
+sns.jointplot(x=train['TotalBsmtSF'], y=train['SalePrice'], kind='reg')",code,,
+44,Everything looks fine here.,markdown,,
+45,"# First Floor Area vs Sale Price
+sns.jointplot(x=train['1stFlrSF'], y=train['SalePrice'], kind='reg')",code,,
+46,Looks good.,markdown,,
+47,"# Total Rooms vs Sale Price
+sns.boxplot(x=train['TotRmsAbvGrd'], y=train['SalePrice'])",code,,
+48,It seems like houses with more than 11 rooms come with a $100k off coupon. It looks like an outlier but I'll let it slide.,markdown,,
+49,"# Total Rooms vs Sale Price
+var = 'YearBuilt'
+data = pd.concat([train['SalePrice'], train[var]], axis=1)
+f, ax = plt.subplots(figsize=(16, 8))
+fig = sns.boxplot(x=var, y=""SalePrice"", data=data)
+fig.axis(ymin=0, ymax=800000);
+plt.xticks(rotation=90);",code,,
+50,"Although it seems like house prices decrease with age, we can't be entirely sure. Is it because of inflation or stock market crashes? Let's leave the years alone.",markdown,,
+51,"## 4. Impute Missing Data and Clean Data
+Important questions when thinking about missing data:
+* How prevalent is the missing data?
+* Is missing data random or does it have a pattern?
+
+The answer to these questions is important for practical reasons because missing data can imply a reduction of the sample size. This can prevent us from proceeding with the analysis. Moreover, from a substantive perspective, we need to ensure that the missing data process is not biased and hiding an inconvenient truth.
+
+Let's combine both training and test data into one dataset to impute missing values and do some cleaning.",markdown,,
+52,"# Combining Datasets
+ntrain = train.shape[0]
+ntest = test.shape[0]
+y_train = train.SalePrice.values
+all_data = pd.concat((train, test)).reset_index(drop=True)
+all_data.drop(['SalePrice'], axis=1, inplace=True)
+print(""Train data size is : {}"".format(train.shape))
+print(""Test data size is : {}"".format(test.shape))
+print(""Combined dataset size is : {}"".format(all_data.shape))",code,,
+53,"# Find Missing Ratio of Dataset
+all_data_na = (all_data.isnull().sum() / len(all_data)) * 100
+all_data_na = all_data_na.drop(all_data_na[all_data_na == 0].index).sort_values(ascending=False)[:30]
+missing_data = pd.DataFrame({'Missing Ratio' :all_data_na})
+missing_data",code,,
+54,"# Percent missing data by feature
+f, ax = plt.subplots(figsize=(15, 12))
+plt.xticks(rotation='90')
+sns.barplot(x=all_data_na.index, y=all_data_na)
+plt.xlabel('Features', fontsize=15)
+plt.ylabel('Percent of missing values', fontsize=15)
+plt.title('Percent missing data by feature', fontsize=15)",code,,
+55,"### Imputing Missing Values
+* PoolQC : data description says NA means ""No Pool""
+* MiscFeature : data description says NA means ""no misc feature""
+* Alley : data description says NA means ""no alley access""
+* Fence : data description says NA means ""no fence""
+* FireplaceQu : data description says NA means ""no fireplace""
+* LotFrontage : Since the area of each street connected to the house property most likely have a similar area to other houses in its neighborhood , we can fill in missing values by the median LotFrontage of the neighborhood.
+* GarageType, GarageFinish, GarageQual and GarageCond : Replacing missing data with ""None"".
+* GarageYrBlt, GarageArea and GarageCars : Replacing missing data with 0.
+* BsmtFinSF1, BsmtFinSF2, BsmtUnfSF, TotalBsmtSF, BsmtFullBath and BsmtHalfBath: Replacing missing data with 0.
+* BsmtQual, BsmtCond, BsmtExposure, BsmtFinType1 and BsmtFinType2 : For all these categorical basement-related features, NaN means that there isn't a basement.
+* MasVnrArea and MasVnrType : NA most likely means no masonry veneer for these houses. We can fill 0 for the area and None for the type.
+* MSZoning (The general zoning classification) : 'RL' is by far the most common value. So we can fill in missing values with 'RL'.
+* Utilities : For this categorical feature all records are ""AllPub"", except for one ""NoSeWa"" and 2 NA . Since the house with 'NoSewa' is in the training set, this feature won't help in predictive modelling. We can then safely remove it.
+* Functional : data description says NA means typical.
+* Electrical : It has one NA value. Since this feature has mostly 'SBrkr', we can set that for the missing value.
+* KitchenQual: Only one NA value, and same as Electrical, we set 'TA' (which is the most frequent) for the missing value in KitchenQual.
+* Exterior1st and Exterior2nd : Both Exterior 1 & 2 have only one missing value. We will just substitute in the most common string
+* SaleType : Fill in again with most frequent which is ""WD""
+* MSSubClass : Na most likely means No building class. We can replace missing values with None
+
+",markdown,,
+56,"all_data[""PoolQC""] = all_data[""PoolQC""].fillna(""None"")
+all_data[""MiscFeature""] = all_data[""MiscFeature""].fillna(""None"")
+all_data[""Alley""] = all_data[""Alley""].fillna(""None"")
+all_data[""Fence""] = all_data[""Fence""].fillna(""None"")
+all_data[""FireplaceQu""] = all_data[""FireplaceQu""].fillna(""None"")
+all_data[""LotFrontage""] = all_data.groupby(""Neighborhood"")[""LotFrontage""].transform(lambda x: x.fillna(x.median()))
+for col in ('GarageType', 'GarageFinish', 'GarageQual', 'GarageCond'):
+    all_data[col] = all_data[col].fillna('None')
+for col in ('GarageYrBlt', 'GarageArea', 'GarageCars'):
+    all_data[col] = all_data[col].fillna(0)
+for col in ('BsmtFinSF1', 'BsmtFinSF2', 'BsmtUnfSF','TotalBsmtSF', 'BsmtFullBath', 'BsmtHalfBath'):
+    all_data[col] = all_data[col].fillna(0)
+for col in ('BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1', 'BsmtFinType2'):
+    all_data[col] = all_data[col].fillna('None')
+all_data[""MasVnrType""] = all_data[""MasVnrType""].fillna(""None"")
+all_data[""MasVnrArea""] = all_data[""MasVnrArea""].fillna(0)
+all_data['MSZoning'] = all_data['MSZoning'].fillna(all_data['MSZoning'].mode()[0])
+all_data = all_data.drop(['Utilities'], axis=1)
+all_data[""Functional""] = all_data[""Functional""].fillna(""Typ"")
+all_data['Electrical'] = all_data['Electrical'].fillna(all_data['Electrical'].mode()[0])
+all_data['KitchenQual'] = all_data['KitchenQual'].fillna(all_data['KitchenQual'].mode()[0])
+all_data['Exterior1st'] = all_data['Exterior1st'].fillna(all_data['Exterior1st'].mode()[0])
+all_data['Exterior2nd'] = all_data['Exterior2nd'].fillna(all_data['Exterior2nd'].mode()[0])
+all_data['SaleType'] = all_data['SaleType'].fillna(all_data['SaleType'].mode()[0])
+all_data['MSSubClass'] = all_data['MSSubClass'].fillna(""None"")",code,,
+57,"# Check if there are any missing values left
+all_data_na = (all_data.isnull().sum() / len(all_data)) * 100
+all_data_na = all_data_na.drop(all_data_na[all_data_na == 0].index).sort_values(ascending=False)
+missing_data = pd.DataFrame({'Missing Ratio' :all_data_na})
+missing_data.head()",code,,
+58,"## 5. Feature Transformation/Engineering
+
+Let's take a look at some features that may be misinterpreted to represent something it's not.
+
+MSSubClass: Identifies the type of dwelling involved in the sale.	
+*         20	1-STORY 1946 & NEWER ALL STYLES
+*         30	1-STORY 1945 & OLDER
+*         40	1-STORY W/FINISHED ATTIC ALL AGES
+*         45	1-1/2 STORY - UNFINISHED ALL AGES
+*         50	1-1/2 STORY FINISHED ALL AGES
+*         60	2-STORY 1946 & NEWER
+*         70	2-STORY 1945 & OLDER
+*         75	2-1/2 STORY ALL AGES
+*         80	SPLIT OR MULTI-LEVEL
+*         85	SPLIT FOYER
+*         90	DUPLEX - ALL STYLES AND AGES
+*        120	1-STORY PUD (Planned Unit Development) - 1946 & NEWER
+*        150	1-1/2 STORY PUD - ALL AGES
+*        160	2-STORY PUD - 1946 & NEWER
+*        180	PUD - MULTILEVEL - INCL SPLIT LEV/FOYER
+*        190	2 FAMILY CONVERSION - ALL STYLES AND AGES
+",markdown,,
+59,all_data['MSSubClass'].describe(),code,,
+60,"So, the average is a 57 type. What does that mean? Is a 90 type 3 times better than a 30 type? This feature was interpreted as numerical when it is actually categorical. The types listed here are codes, not values. Thus, we need to feature transformation with this and many other features.",markdown,,
+61,"#MSSubClass =The building class
+all_data['MSSubClass'] = all_data['MSSubClass'].apply(str)
+
+#Changing OverallCond into a categorical variable
+all_data['OverallCond'] = all_data['OverallCond'].astype(str)
+
+#Year and month sold are transformed into categorical features.
+all_data['YrSold'] = all_data['YrSold'].astype(str)
+all_data['MoSold'] = all_data['MoSold'].astype(str)",code,,
+62,"In our previous example, we could tell that our categories don't follow a particular order. What about categories that do? Let's take a look at ""Kitchen Quality"".",markdown,,
+63,all_data['KitchenQual'].unique(),code,,
+64,"Here, data_description.txt comes to the rescue again!
+
+Kitchen Quality:
+*        Ex:	Excellent
+*        Gd:	Good
+*        TA:	Typical/Average
+*        Fa:	Fair
+*        Po:	Poor
+
+Is a score of ""Gd"" better than ""TA"" but worse than ""Ex""? I think so, let's encode these labels to give meaning to their specific orders.",markdown,,
+65,"from sklearn.preprocessing import LabelEncoder
+cols = ('FireplaceQu', 'BsmtQual', 'BsmtCond', 'GarageQual', 'GarageCond', 
+        'ExterQual', 'ExterCond','HeatingQC', 'PoolQC', 'KitchenQual', 'BsmtFinType1', 
+        'BsmtFinType2', 'Functional', 'Fence', 'BsmtExposure', 'GarageFinish', 'LandSlope',
+        'LotShape', 'PavedDrive', 'Street', 'Alley', 'CentralAir', 'MSSubClass', 'OverallCond', 
+        'YrSold', 'MoSold')
+# Process columns and apply LabelEncoder to categorical features
+for c in cols:
+    lbl = LabelEncoder() 
+    lbl.fit(list(all_data[c].values)) 
+    all_data[c] = lbl.transform(list(all_data[c].values))
+
+# Check shape        
+print('Shape all_data: {}'.format(all_data.shape))",code,,
+66,"1. Let's engineer one feature to combine square footage, this may be useful later on.",markdown,,
+67,"# Adding Total Square Feet feature 
+all_data['TotalSF'] = all_data['TotalBsmtSF'] + all_data['1stFlrSF'] + all_data['2ndFlrSF']",code,,
+68,"### Fixing ""skewed"" features.
+Here, we fix all of the skewed data to be more normal so that our models will be more accurate when making predictions.",markdown,,
+69,"# We use the numpy fuction log1p which  applies log(1+x) to all elements of the column
+train[""SalePrice""] = np.log1p(train[""SalePrice""])
+
+#Check the new distribution 
+sns.distplot(train['SalePrice'] , fit=norm);
+
+# Get the fitted parameters used by the function
+(mu, sigma) = norm.fit(train['SalePrice'])
+print( '\n mu = {:.2f} and sigma = {:.2f}\n'.format(mu, sigma))
+plt.legend(['Normal dist. ($\mu=$ {:.2f} and $\sigma=$ {:.2f} )'.format(mu, sigma)],
+            loc='best')
+plt.ylabel('Frequency')
+plt.title('SalePrice distribution')
+
+fig = plt.figure()
+res = stats.probplot(train['SalePrice'], plot=plt)
+plt.show()
+
+y_train = train.SalePrice.values
+
+print(""Skewness: %f"" % train['SalePrice'].skew())
+print(""Kurtosis: %f"" % train['SalePrice'].kurt())",code,,
+70,"numeric_feats = all_data.dtypes[all_data.dtypes != ""object""].index
+
+# Check the skew of all numerical features
+skewed_feats = all_data[numeric_feats].apply(lambda x: skew(x.dropna())).sort_values(ascending=False)
+skewness = pd.DataFrame({'Skewed Features' :skewed_feats})
+skewness.head()",code,,
+71,"skewness = skewness[abs(skewness) > 0.75]
+print(""There are {} skewed numerical features to Box Cox transform"".format(skewness.shape[0]))
+
+from scipy.special import boxcox1p
+skewed_features = skewness.index
+lam = 0.15
+for feat in skewed_features:
+    all_data[feat] = boxcox1p(all_data[feat], lam)
+    all_data[feat] += 1",code,,
+72,"all_data = pd.get_dummies(all_data)
+print(all_data.shape)",code,,
+73,"train = all_data[:ntrain]
+test = all_data[ntrain:]",code,,
+74,## 6. Modeling and Predictions,markdown,,
+75,"from sklearn.linear_model import ElasticNet, Lasso,  BayesianRidge, LassoLarsIC
+from sklearn.ensemble import RandomForestRegressor,  GradientBoostingRegressor
+from sklearn.kernel_ridge import KernelRidge
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import RobustScaler
+from sklearn.base import BaseEstimator, TransformerMixin, RegressorMixin, clone
+from sklearn.model_selection import KFold, cross_val_score, train_test_split
+from sklearn.metrics import mean_squared_error
+import xgboost as xgb
+import lightgbm as lgb",code,,
+76,"# Cross-validation with k-folds
+n_folds = 5
+
+def rmsle_cv(model):
+    kf = KFold(n_folds, shuffle=True, random_state=42).get_n_splits(train.values)
+    rmse= np.sqrt(-cross_val_score(model, train.values, y_train, scoring=""neg_mean_squared_error"", cv = kf))
+    return(rmse)",code,,
+77,"For our models, we are going to use lasso, elastic net, kernel ridge, gradient boosting, XGBoost, and LightGBM regression.",markdown,,
+78,"lasso = make_pipeline(RobustScaler(), Lasso(alpha =0.0005, random_state=1))
+ENet = make_pipeline(RobustScaler(), ElasticNet(alpha=0.0005, l1_ratio=.9, random_state=3))
+KRR = KernelRidge(alpha=0.6, kernel='polynomial', degree=2, coef0=2.5)
+GBoost = GradientBoostingRegressor(n_estimators=3000, learning_rate=0.05,
+                                   max_depth=4, max_features='sqrt',
+                                   min_samples_leaf=15, min_samples_split=10, 
+                                   loss='huber', random_state =5)
+model_xgb = xgb.XGBRegressor(colsample_bytree=0.2, gamma=0.0, 
+                             learning_rate=0.05, max_depth=6, 
+                             min_child_weight=1.5, n_estimators=7200,
+                             reg_alpha=0.9, reg_lambda=0.6,
+                             subsample=0.2,seed=42, silent=1,
+                             random_state =7)
+model_lgb = lgb.LGBMRegressor(objective='regression',num_leaves=5,
+                              learning_rate=0.05, n_estimators=720,
+                              max_bin = 55, bagging_fraction = 0.8,
+                              bagging_freq = 5, feature_fraction = 0.2319,
+                              feature_fraction_seed=9, bagging_seed=9,
+                              min_data_in_leaf =6, min_sum_hessian_in_leaf = 11)",code,,
+79,Checking performance of base models by evaluating the cross-validation RMSLE error.,markdown,,
+80,"score = rmsle_cv(lasso)
+print(""\nLasso score: {:.4f} ({:.4f})\n"".format(score.mean(), score.std()))
+score = rmsle_cv(ENet)
+print(""ElasticNet score: {:.4f} ({:.4f})\n"".format(score.mean(), score.std()))
+score = rmsle_cv(KRR)
+print(""Kernel Ridge score: {:.4f} ({:.4f})\n"".format(score.mean(), score.std()))
+score = rmsle_cv(GBoost)
+print(""Gradient Boosting score: {:.4f} ({:.4f})\n"".format(score.mean(), score.std()))
+score = rmsle_cv(model_xgb)
+print(""Xgboost score: {:.4f} ({:.4f})\n"".format(score.mean(), score.std()))
+score = rmsle_cv(model_lgb)
+print(""LGBM score: {:.4f} ({:.4f})\n"" .format(score.mean(), score.std()))",code,,
+81,"Here, we stack the models to average their scores.",markdown,,
+82,"class AveragingModels(BaseEstimator, RegressorMixin, TransformerMixin):
+    def __init__(self, models):
+        self.models = models
+        
+    # we define clones of the original models to fit the data in
+    def fit(self, X, y):
+        self.models_ = [clone(x) for x in self.models]
+        
+        # Train cloned base models
+        for model in self.models_:
+            model.fit(X, y)
+
+        return self
+    
+    #Now we do the predictions for cloned models and average them
+    def predict(self, X):
+        predictions = np.column_stack([
+            model.predict(X) for model in self.models_
+        ])
+        return np.mean(predictions, axis=1)  ",code,,
+83,"Here we average ENet, GBoost, KRR, and lasso. We'll add in XGBoost and LightGBM later.",markdown,,
+84,"averaged_models = AveragingModels(models = (ENet, GBoost, KRR, lasso))
+
+score = rmsle_cv(averaged_models)
+print(""Averaged base models score: {:.4f} ({:.4f})\n"".format(score.mean(), score.std()))",code,,
+85,"class StackingAveragedModels(BaseEstimator, RegressorMixin, TransformerMixin):
+    def __init__(self, base_models, meta_model, n_folds=5):
+        self.base_models = base_models
+        self.meta_model = meta_model
+        self.n_folds = n_folds
+   
+    # We again fit the data on clones of the original models
+    def fit(self, X, y):
+        self.base_models_ = [list() for x in self.base_models]
+        self.meta_model_ = clone(self.meta_model)
+        kfold = KFold(n_splits=self.n_folds, shuffle=True)
+        
+        # Train cloned base models then create out-of-fold predictions
+        # that are needed to train the cloned meta-model
+        out_of_fold_predictions = np.zeros((X.shape[0], len(self.base_models)))
+        for i, clf in enumerate(self.base_models):
+            for train_index, holdout_index in kfold.split(X, y):
+                instance = clone(clf)
+                self.base_models_[i].append(instance)
+                instance.fit(X[train_index], y[train_index])
+                y_pred = instance.predict(X[holdout_index])
+                out_of_fold_predictions[holdout_index, i] = y_pred
+                
+        # Now train the cloned  meta-model using the out-of-fold predictions
+        self.meta_model_.fit(out_of_fold_predictions, y)
+        return self
+   
+    def predict(self, X):
+        meta_features = np.column_stack([
+            np.column_stack([model.predict(X) for model in base_models]).mean(axis=1)
+            for base_models in self.base_models_ ])
+        return self.meta_model_.predict(meta_features)",code,,
+86,"Since our lasso model performed the best, we'll use it as a meta-model.",markdown,,
+87,"stacked_averaged_models = StackingAveragedModels(base_models = (ENet, GBoost, KRR),
+                                                 meta_model = lasso)
+
+score = rmsle_cv(stacked_averaged_models)
+print(""Stacking Averaged models score: {:.4f} ({:.4f})"".format(score.mean(), score.std()))",code,,
+88,"def rmsle(y, y_pred):
+    return np.sqrt(mean_squared_error(y, y_pred))",code,,
+89,### Stacked models,markdown,,
+90,"stacked_averaged_models.fit(train.values, y_train)
+stacked_train_pred = stacked_averaged_models.predict(train.values)
+stacked_pred = np.expm1(stacked_averaged_models.predict(test.values))
+print(rmsle(y_train, stacked_train_pred))",code,,
+91,### XGBoost,markdown,,
+92,"model_xgb.fit(train, y_train)
+xgb_train_pred = model_xgb.predict(train)
+xgb_pred = np.expm1(model_xgb.predict(test))
+print(rmsle(y_train, xgb_train_pred))",code,,
+93,### LightGBM,markdown,,
+94,"model_lgb.fit(train, y_train)
+lgb_train_pred = model_lgb.predict(train)
+lgb_pred = np.expm1(model_lgb.predict(test.values))
+print(rmsle(y_train, lgb_train_pred))",code,,
+95,"'''RMSE on the entire Train data when averaging'''
+
+print('RMSLE score on train data:')
+print(rmsle(y_train,stacked_train_pred*0.70 +
+               xgb_train_pred*0.10 + lgb_train_pred*0.20 ))",code,,
+96,"### Ensemble Prediction
+Note: To get our weights for each model, we'll take the inverse of each regressor and average it out of 100%",markdown,,
+97,"# Example
+Stacked = 1/(0.1077)
+XGBoost = 1/(0.1177)
+LGBM = 1/(0.1159)
+Sum = Stacked + XGBoost + LGBM
+Stacked = Stacked/Sum
+XGBoost = XGBoost/Sum
+LGBM = LGBM/Sum
+print(Stacked, XGBoost, LGBM)",code,,
+98,"'''RMSE on the entire Train data when averaging'''
+
+print('RMSLE score on train data:')
+print(rmsle(y_train,stacked_train_pred*Stacked +
+               xgb_train_pred*XGBoost + lgb_train_pred*LGBM))",code,,
+99,ensemble = stacked_pred*Stacked + xgb_pred*XGBoost + lgb_pred*LGBM,code,,
+100,### Submission,markdown,,
+101,"sub = pd.DataFrame()
+sub['Id'] = test_ID
+sub['SalePrice'] = ensemble
+sub.to_csv('submission.csv',index=False)",code,,

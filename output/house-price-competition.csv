@@ -1,0 +1,659 @@
+ID,Source,Type,Category,Stage
+0,"## Hello, my Kaggle friends.   
+Today I start a new competition with a prediction of house prices.   
+It seems like this task will be more difficult, than a computing of Titanic passenger survival probability.  
+However, let's start with import libs and data.",markdown,,
+1,"#common
+import numpy as np
+import pandas as pd 
+import IPython
+from IPython.display import display
+import warnings
+warnings.simplefilter('ignore')
+
+#visualisation
+import seaborn as sns
+import matplotlib.pyplot as plt
+%matplotlib inline
+import plotly.graph_objects as go
+import plotly.express as px
+import matplotlib.style as style
+from matplotlib.colors import ListedColormap
+
+from sklearn.metrics import SCORERS
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+from sklearn.model_selection import train_test_split, cross_validate, cross_val_score, GridSearchCV, RandomizedSearchCV, KFold
+from sklearn.pipeline import Pipeline, make_pipeline
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, OrdinalEncoder, LabelEncoder, OneHotEncoder
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.utils import shuffle, resample
+from sklearn.compose import ColumnTransformer
+from sklearn.decomposition import PCA, IncrementalPCA
+
+#regressors
+from sklearn.dummy import DummyRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import GradientBoostingRegressor, AdaBoostRegressor, RandomForestRegressor
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.svm import LinearSVR, SVR
+import xgboost as xgb
+import lightgbm as lgb
+from catboost import CatBoostRegressor, Pool",code,,
+2,"train_df = pd.read_csv('../input/house-prices-advanced-regression-techniques/train.csv')
+test_df = pd.read_csv('../input/house-prices-advanced-regression-techniques/test.csv')
+subm = pd.read_csv('../input/house-prices-advanced-regression-techniques/sample_submission.csv')",code,,
+3,#### Checking the datasets,markdown,,
+4,train_df.info(),code,,
+5,train_df.columns,code,,
+6,"The very first problem is that we have 80 features for prediction. And we have to pick only the important ones.   
+The second question we must figure out are what to do with lots of missing values.  
+And finally, we must turn all the 'sting' objects to numeric values.  
+
+Ok, let's jump into it.",markdown,,
+7,"#### Pre-analysis.  
+
+First, lets check the SalePrice column to clearly understand the distibution of prices.",markdown,,
+8,train_df['SalePrice'].describe(),code,,
+9,"Mean price is around 180k USD, the most expensive house is for 775k USD and the cheapest is only for 34,9k USD. 50 quantile lies at 163k USD.  
+
+Draw a distribution plot of prices.",markdown,,
+10,"sns.set_style('darkgrid')
+
+fig,ax = plt.subplots(1,1,figsize=(8,6))
+sns.distplot(train_df['SalePrice'], ax=ax)
+
+ax.set_xlabel('House price, USD')
+plt.suptitle('Price distribution', size=15)
+plt.show()",code,,
+11,len(train_df.query('SalePrice > 500000')),code,,
+12,"Only nine houses have a price more than 500000 $, seems like we can drop them as outliers in the future.",markdown,,
+13,### Preprocessing,markdown,,
+14,"As we mentioned above, there are a lot of missing values in train and test datasets. Using the description text file, we will gently replace all the ""NAN""s with proper values.",markdown,,
+15,"len(train_df), len(test_df)",code,,
+16,train_df.isna().sum().sort_values(ascending=False).head(10),code,,
+17,test_df.isna().sum().sort_values(ascending=False).head(10),code,,
+18,"Four features (Pool quality, Misc Feature, Type of alley access and Fence quality) have more than 80% of missing values. It seems like these features don't affect the final sale price, and we may easily drop them from both datasets.",markdown,,
+19,"train_df = train_df.drop(['PoolQC', 'MiscFeature', 'Alley', 'Fence'], axis=1)
+test_df = test_df.drop(['PoolQC', 'MiscFeature', 'Alley', 'Fence'], axis=1)",code,,
+20,"temp = train_df.isna().sum().sort_values()
+temp[temp>=1]",code,,
+21,"temp = test_df.isna().sum().sort_values()
+temp[temp>=1]",code,,
+22,Let's combine two datasets and work with missing values faster.,markdown,,
+23,full_df = pd.concat([train_df] + [test_df]).reset_index(drop=True),code,,
+24,full_df,code,,
+25,Don't forget to save the indexes of primary datasets.,markdown,,
+26,"train_ind = train_df['Id']
+test_ind = test_df['Id']",code,,
+27,test_ind,code,,
+28,full_df.head(),code,,
+29,"temp = full_df.isna().sum().sort_values()
+temp[temp>=1]",code,,
+30,"##### Most common categorial features
+
+Here we have some categorical features (such as FireplaceQu and GarageQual for example), some numeric features (LotFrontage and MasVnrArea). 
+First, we figure out with categorical ones.",markdown,,
+31,"full_df['FireplaceQu'] = full_df['FireplaceQu'].fillna('None')
+full_df['GarageQual'] = full_df['GarageQual'].fillna('None')
+full_df['GarageFinish'] = full_df['GarageFinish'].fillna('None')
+full_df['GarageCond'] = full_df['GarageCond'].fillna('None')
+full_df['GarageType'] = full_df['GarageType'].fillna('None')
+full_df['BsmtExposure'] = full_df['BsmtExposure'].fillna('None')
+full_df['BsmtQual'] = full_df['BsmtQual'].fillna('None')
+full_df['BsmtCond'] = full_df['BsmtCond'].fillna('None')
+full_df['BsmtFinType2'] = full_df['BsmtFinType2'].fillna('None')
+full_df['BsmtFinType1'] = full_df['BsmtFinType1'].fillna('None')
+full_df['MasVnrType'] = full_df['MasVnrType'].fillna('None')
+full_df['BsmtFinType2'] = full_df['BsmtFinType2'].fillna('None')",code,,
+32,full_df.isna().sum().sort_values(ascending=False).head(20),code,,
+33,"Keep in mind, that we dont need to fill SalePrice column! 
+
+---
+
+##### LotFrontage
+Linear feet of street connected to property. What if this feature depends of LotArea (Lot size in square feet).",markdown,,
+34,"temp = full_df[['LotFrontage','LotArea']]
+
+plt.figure(figsize=(10,6))
+sns.scatterplot(x=temp['LotFrontage'], y=temp['LotArea'])
+plt.title('Correlations between Lot Area and Lot Frontage', size=15);
+
+print(temp.corr())",code,,
+35,We will fill missing LotFrontage values with square root of LotArea.,markdown,,
+36,full_df['LotFrontage'] = full_df['LotFrontage'].fillna(np.sqrt(full_df['LotArea'])),code,,
+37,"temp = full_df[['LotFrontage','LotArea']]
+
+plt.figure(figsize=(10,6))
+sns.scatterplot(x=temp['LotFrontage'], y=temp['LotArea'])
+plt.title('Correlations between Lot Area and Lot Frontage with filled missing values', size=15);
+
+print(temp.corr())",code,,
+38,"We can observe a clear line of new meanings. Let's see if it will affect the predictions in the future. 
+
+---
+
+##### Garages and cars
+
+What year garages were built?",markdown,,
+39,"temp_year = full_df[['GarageYrBlt', 'YearBuilt']]
+
+temp_year",code,,
+40,"plt.figure(figsize=(10,7))
+sns.scatterplot(temp_year['YearBuilt'], temp_year['GarageYrBlt'])
+plt.title('Were houses and garages built at the same time?', size=15);",code,,
+41,"Nope. We can see, that lot of garages were attached to old houses few years later from the building date.  
+After 1980, almost all new houses have a garage by default.  
+Look, somebody want to build a garage after 2200! We must to change it!
+",markdown,,
+42,full_df.query('GarageYrBlt>2100')['GarageYrBlt'],code,,
+43,"Ah, what a pity mistake.",markdown,,
+44,"full_df.loc[full_df['GarageYrBlt'] == 2207,'GarageYrBlt'] = 2007",code,,
+45,"By the way, let's fill all the missing years with the date of the houses were built.",markdown,,
+46,full_df['GarageYrBlt'] = full_df['GarageYrBlt'].fillna(full_df['YearBuilt']),code,,
+47,full_df.isna().sum().sort_values(ascending=False).head(10),code,,
+48,"Garage cars and Garrage area, next, please.",markdown,,
+49,full_df['GarageArea'] = full_df.groupby('GarageType')['GarageArea'].transform(lambda x: x.fillna(value=x.median())),code,,
+50,I think there should be a strong correlation between Garage Area and number of places for cars.,markdown,,
+51,full_df['GarageCars'].corr(full_df['GarageArea']),code,,
+52,Yes!,markdown,,
+53,full_df.loc[full_df['GarageCars'].isna()]['GarageArea'],code,,
+54,"This garage has a vast area, and we may predict it can accommodate...",markdown,,
+55,full_df.loc[full_df['GarageArea'] == 400]['GarageCars'].value_counts(),code,,
+56,...two cars.,markdown,,
+57,full_df['GarageCars'] = full_df['GarageCars'].fillna(2),code,,
+58,##### Veneer area,markdown,,
+59,"full_df.loc[full_df['MasVnrArea'].isna()][['MasVnrArea', 'MasVnrType']]",code,,
+60,"Ok, we will replace missing Veneer area with O.",markdown,,
+61,full_df['MasVnrArea'] = full_df['MasVnrArea'].fillna(0),code,,
+62,"##### We need more different zones, Milord",markdown,,
+63,full_df.loc[full_df['MSZoning'].isna()],code,,
+64,full_df['MSZoning'].value_counts(),code,,
+65,We just fill missing Zoning values with 'RL'.,markdown,,
+66,full_df['MSZoning'] = full_df['MSZoning'].fillna(value='RL'),code,,
+67,"##### Utilities
+
+What about missing availible utilities? Let's check the year of the build.",markdown,,
+68,full_df.loc[full_df['Utilities'].isna()]['YearBuilt'] ,code,,
+69,What kind of utilities was available at those times?,markdown,,
+70,"print(full_df.loc[full_df['YearBuilt'] == 1910]['Utilities'].value_counts())
+print(full_df.loc[full_df['YearBuilt'] == 1952]['Utilities'].value_counts())",code,,
+71,"Comfort houses, by the way. So, fill NANs with 'AllPub' values.",markdown,,
+72,full_df['Utilities'] = full_df['Utilities'].fillna(value='AllPub'),code,,
+73,##### Time to bath (not bass),markdown,,
+74,full_df['BsmtHalfBath'].value_counts(),code,,
+75,full_df['BsmtFullBath'].value_counts(),code,,
+76,"full_df.query('BsmtHalfBath==""nan"" or BsmtFullBath==""nan""')[['BsmtHalfBath', 'BsmtFullBath', 'YearBuilt']]",code,,
+77,"full_df.query('YearBuilt == 1959')['BsmtHalfBath'].value_counts()
+#full_df.query('YearBuilt == 1946')['BsmtHalfBath']",code,,
+78,"Let's pretend, there are no bath at these houses.",markdown,,
+79,"full_df[['BsmtHalfBath', 'BsmtFullBath']] = full_df[['BsmtHalfBath', 'BsmtFullBath']].fillna(value=0)",code,,
+80,"Next, please.   
+##### Functional",markdown,,
+81,full_df.Functional.value_counts(),code,,
+82,full_df['Functional'] = full_df['Functional'].fillna('Typ'),code,,
+83,full_df.isna().sum().sort_values(ascending=False).head(10),code,,
+84,Square feets,markdown,,
+85,full_df['BsmtFinSF2'].value_counts(),code,,
+86,full_df['BsmtFinSF2'] = full_df['BsmtFinSF2'].fillna(0),code,,
+87,full_df.loc[full_df['BsmtFinSF1'].isna()]['BsmtFinType1'],code,,
+88,full_df['BsmtFinSF1'] = full_df['BsmtFinSF1'].fillna(0),code,,
+89,"full_df.loc[full_df['TotalBsmtSF'].isna(), 'BsmtFinSF1']",code,,
+90,"full_df[['TotalBsmtSF', 'BsmtFinSF1']]",code,,
+91,full_df['TotalBsmtSF'].corr(full_df['SalePrice']),code,,
+92,full_df.isna().sum().sort_values(ascending=False).head(10),code,,
+93,full_df.loc[full_df['TotalBsmtSF'].isna()]['OverallQual'],code,,
+94,full_df.loc[full_df['OverallQual']==4]['BsmtUnfSF'].value_counts(),code,,
+95,"full_df[['TotalBsmtSF','BsmtUnfSF']] = full_df[['TotalBsmtSF','BsmtUnfSF']].fillna(0)",code,,
+96,Missing sale type,markdown,,
+97,full_df['SaleType'].value_counts(),code,,
+98,full_df['SaleType'] = full_df['SaleType'].fillna('WD'),code,,
+99,What a beautiful exterior!,markdown,,
+100,"full_df.loc[full_df['Exterior2nd'].isna()][['Exterior2nd','Exterior1st','YearBuilt']]",code,,
+101,This house was built in 1940. Which type of material was more popular at that time?,markdown,,
+102,"full_df.loc[full_df['YearBuilt'] == 1940][['Exterior1st', 'Exterior2nd', 'MSZoning']]",code,,
+103,full_df.loc[full_df['YearBuilt'] == 1940]['Exterior1st'].value_counts(),code,,
+104,full_df.loc[full_df['YearBuilt'] == 1940]['Exterior2nd'].value_counts(),code,,
+105,"As we can see, materials for both exteriors are the same as usual. Wood and metal were the most common materials.
+
+Let's pretend, in this case, there are metal siding.",markdown,,
+106,"full_df[['Exterior1st','Exterior2nd']] = full_df[['Exterior1st','Exterior2nd']].fillna('MetalSd')",code,,
+107,##### Air is electrising!,markdown,,
+108,full_df.loc[full_df['Electrical'].isna()]['YearBuilt'],code,,
+109,This house is almost new.,markdown,,
+110,full_df.loc[full_df['YearBuilt'] == 2006]['Electrical'].value_counts(),code,,
+111,There is no other options.,markdown,,
+112,full_df['Electrical'] = full_df['Electrical'].fillna(value='SBrkr'),code,,
+113,"##### Finaly, time for the most important area into entire house!",markdown,,
+114,full_df.loc[full_df['KitchenQual'].isna()]['YearBuilt'],code,,
+115,"full_df.loc[full_df['YearBuilt']==1917][['KitchenQual', 'OverallCond']]",code,,
+116,full_df.loc[full_df['OverallCond']==3]['KitchenQual'].value_counts(),code,,
+117,"Ok, we just fill last missing value with 'TA'.",markdown,,
+118,full_df['KitchenQual'] = full_df['KitchenQual'].fillna(value='TA'),code,,
+119,Checking the full dataset.,markdown,,
+120,full_df.isna().sum().sort_values(),code,,
+121,"Good, only price values, we must predict, are still missing.",markdown,,
+122,"### Feature selection  
+
+For the first try, let's choose important features manually.",markdown,,
+123,"full_df_ref_man = full_df[[
+                           'Street',
+                           'Exterior1st',
+                           'KitchenQual',
+                           'Heating',
+    
+                           'MSZoning',
+                           'YearBuilt',
+                           'Neighborhood',
+                           'Condition1',
+                           'BldgType',
+                           'HouseStyle',
+                           'OverallQual',
+                           'OverallCond',
+                           'ExterQual',
+                           'ExterCond', 
+                           'BsmtQual',
+                           'BsmtCond',
+                           'CentralAir',
+                           'HeatingQC',
+                           'Electrical',
+                           '1stFlrSF',
+                           '2ndFlrSF',
+                           'GrLivArea',
+                           'FullBath',
+                           'BedroomAbvGr',
+                           'KitchenAbvGr',
+                           'Functional',
+                           'GarageType',
+                           'GarageQual',
+                           'OpenPorchSF',
+                           'PoolArea',
+                           'SaleType',
+                           'SaleCondition',
+                           'SalePrice'
+                          ]]",code,,
+124,"full_df_ver2 = full_df[[
+                            ### This features were added during the last attempt ###
+                           'LotFrontage',
+                           'LotArea',
+                           'Condition2',
+                           'YearRemodAdd',
+                           'MasVnrArea',
+                           'BsmtFinType1',
+                           'TotalBsmtSF',
+                           'TotRmsAbvGrd',
+                           'Fireplaces',
+                           'GarageYrBlt',
+                           'GarageCars',
+    
+                            ### Current best result was performed with these features ### 
+                           'Street',
+                           'Exterior1st',
+                           'KitchenQual',
+                           'Heating',
+                            
+                            ### I also removed some features from this list ###
+                           'MSZoning',
+                           'YearBuilt',
+                           'Neighborhood',
+                           'Condition1',
+                           'BldgType',
+                           'HouseStyle',
+                           'OverallQual',
+                           'OverallCond',
+                           'ExterQual',
+                           'ExterCond', 
+                           'BsmtQual',
+                           'BsmtCond',
+                           'CentralAir',
+                           'HeatingQC',
+                           'Electrical',
+                           '1stFlrSF',
+                           '2ndFlrSF',
+                           'GrLivArea',
+                           #'FullBath',
+                           #'BedroomAbvGr',
+                           #'KitchenAbvGr',
+                           'Functional',
+                           'GarageType',
+                           #'GarageQual',
+                           #'OpenPorchSF',
+                           #'PoolArea',
+                           'SaleType',
+                           'SaleCondition',
+                           'SalePrice'
+                          ]]",code,,
+125,"full_df_ref_man.index = full_df[""Id""]
+full_df_ver2.index = full_df['Id']
+full_df_all.index = full_df['Id']",code,,
+126,full_df_ver2.head(),code,,
+127,"#### Features encoding 
+
+Using dummy encoding, we will replace all categotial features with 1 and 0 values.",markdown,,
+128,"full_df_upd_0 = pd.get_dummies(full_df_ref_man, drop_first=True)
+full_df_enc_2 = pd.get_dummies(full_df_ver2, drop_first=True)",code,,
+129,"Also, for some gradient boosting machines, let's encode categorial string values to integer ones.",markdown,,
+130,enc = OrdinalEncoder(),code,,
+131,full_df_ver2.columns,code,,
+132,"cat_features = ['LotFrontage', 'Condition2',
+       'BsmtFinType1', 'Fireplaces', 'SaleType', 'SaleCondition', 'Street',
+       'Exterior1st', 'KitchenQual', 'Heating', 'MSZoning', 
+       'Neighborhood', 'Condition1', 'BldgType', 'HouseStyle', 'OverallQual',
+       'OverallCond', 'ExterQual', 'ExterCond', 'BsmtQual', 'BsmtCond',
+       'CentralAir', 'HeatingQC', 'Electrical', 'Functional', 'GarageType', 'SaleCondition']",code,,
+133,"full_df_ver2_cat = full_df_ver2.copy()
+full_df_ver2_cat[cat_features] = enc.fit_transform(full_df_ver2_cat[cat_features]).astype('int')",code,,
+134,Divide full dataset into train and test subsets again. Also pick out the target values ('SalePrice'),markdown,,
+135,RND_ST = 42,code,,
+136,"X_train_0 = full_df_upd_0.query('index in @train_ind').drop(['SalePrice'], axis=1).reset_index(drop=True)
+X_test_0 = full_df_upd_0.query('index in @test_ind').drop(['SalePrice'], axis=1).reset_index(drop=True)
+
+X_train_2 = full_df_enc_2.query('index in @train_ind').drop(['SalePrice'], axis=1).reset_index(drop=True)
+X_test_2 = full_df_enc_2.query('index in @test_ind').drop(['SalePrice'], axis=1).reset_index(drop=True)
+
+X_train_cat = full_df_ver2_cat.query('index in @train_ind').drop(['SalePrice'], axis=1).reset_index(drop=True).astype('int')
+X_test_cat = full_df_ver2_cat.query('index in @test_ind').drop(['SalePrice'], axis=1).reset_index(drop=True).astype('int')
+
+y_train = full_df_upd_0.query('index in @train_ind')['SalePrice'].reset_index(drop=True)
+
+
+### Validation subsets
+
+X_train_sub, X_test_sub, y_train_sub, y_test_sub = train_test_split(X_train_0, y_train, test_size=0.2, random_state=RND_ST) 
+X_train_sub_2, X_valid_sub_2, y_train_sub_2, y_valid_sub_2 = train_test_split(X_train_2, y_train, test_size=0.2, random_state=RND_ST) 
+X_train_sub_c, X_valid_sub_c, y_train_sub_c, y_valid_sub_c = train_test_split(X_train_cat, y_train, test_size=0.2, random_state=RND_ST) ",code,,
+137,### Model selection  ,markdown,,
+138,Looking for the best hyperparameters.,markdown,,
+139,"def mae(model, X_train, X_test, y_train, y_test):
+    
+    model.fit(X_train, y_train)
+    y_train_pred = model.predict(X_train)
+    y_test_pred = model.predict(X_test)
+    
+    print('MAE train = ', mean_absolute_error(y_train, y_train_pred))
+    print('MAE test = ', mean_absolute_error(y_test, y_test_pred))",code,,
+140,RND_ST = 42,code,,
+141,"### Random Forest Regressor ###
+
+rfr = RandomForestRegressor(n_jobs=-1, random_state=RND_ST)
+
+params_rfr = dict(n_estimators=range(10,500,10),
+                  max_features=range(5, 30),
+                  max_leaf_nodes = [1,5,10,20])
+
+
+### Gradient Boosting Regressor ###
+
+gbr = GradientBoostingRegressor(random_state=RND_ST)
+
+params_gbr = dict(n_estimators=range(200,1000,5),
+                  max_features=range(5, 40),
+                  max_depth=[0,2,3,4],
+                  learning_rate = [0.01, 0.1, 0.5, 1],
+                  )
+
+params_gbr_nest = dict(n_estimators=range(200,900,5))
+
+params_gbr_other = dict(#max_features=range(10, 50),
+                        max_depth=[2,3,4],
+                        learning_rate = [0.1, 0.3, 0.5, 1],
+                        max_features = ['auto', 'sqrt', 'log2'])
+
+### xgboost ### 
+
+dtrain_sub = xgb.DMatrix(data=X_train_sub_2, label=y_train_sub_2)
+dtrain_full = xgb.DMatrix(data=X_train_2, label=y_train)
+
+dvalid_sub = xgb.DMatrix(data=X_valid_sub_2)
+dtest = xgb.DMatrix(data=X_test_2)
+
+### LightGBM ###
+
+train_data = lgb.Dataset(X_train_sub_c, label=y_train_sub_c, categorical_feature=cat_features, free_raw_data=False)
+train_data_full = lgb.Dataset(X_train_cat, label=y_train, categorical_feature=cat_features, free_raw_data=False) 
+
+### CatBoost ###
+
+catboost_train = Pool(X_train_sub_c, y_train_sub_c, cat_features=cat_features)
+catboost_train_full = Pool(X_train_cat, y_train, cat_features=cat_features)",code,,
+142,Create the Randomized Search function with 5 folds. We will use MAE as the main searching metric.,markdown,,
+143,"def random_search(model, params, feat, targ):
+    
+    
+    search = RandomizedSearchCV(model, params, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1)
+    search.fit(feat, targ)
+    
+    print(search.best_score_)
+    print(search.best_params_)",code,,
+144,"def grid_search(model, params, feat, targ):
+    
+    
+    search = GridSearchCV(model, params, cv=5, scoring='neg_mean_absolute_error', n_jobs=-1, verbose=1)
+    search.fit(feat, targ)
+    
+    print(search.best_score_)
+    print(search.best_params_)",code,,
+145,"---
+
+#### Gradient boosting",markdown,,
+146,"random_search(gbr, params_gbr, X_train_2, y_train)",code,,
+147,"MAE = 15157 - nice value with updated features.  
+Let's try to find better metric with two-steps grid search.",markdown,,
+148,"#grid_search(gbr, params_gbr_nest, X_train_2, y_train)",code,,
+149,"gbr_est = GradientBoostingRegressor(n_estimators=265, random_state=RND_ST)
+
+gbr_est_1 = GradientBoostingRegressor(n_estimators=385, random_state=RND_ST)
+
+gbr_est_2 = GradientBoostingRegressor(n_estimators=385, random_state=RND_ST)",code,,
+150,"#grid_search(gbr_est_1, params_gbr_other, X_train_2, y_train)",code,,
+151,"grid_search(gbr_est_2, params_gbr_other, X_train_2, y_train)",code,,
+152,"gbr_new = GradientBoostingRegressor(n_estimators=265, max_depth=4, max_features=28, random_state=RND_ST)
+gbr_new_2 = GradientBoostingRegressor(n_estimators=385, max_depth=3, max_features=24, random_state=RND_ST)
+gbr_new_3 = GradientBoostingRegressor(n_estimators=700, max_depth=4, max_features=24, random_state=RND_ST, learning_rate=0.3)",code,,
+153,"mae(gbr_new_2, X_train_sub_2, X_valid_sub_2, y_train_sub_2, y_valid_sub_2)",code,,
+154,"mae(gbr_new_3, X_train_sub_2, X_valid_sub_2, y_train_sub_2, y_valid_sub_2)",code,,
+155,"### Best metrics for gradient boosting regressor
+### MAE train =  7508.041979472287
+### MAE test =  16559.574486690173",code,,
+156,"---
+
+#### LightGBM",markdown,,
+157,"param = {'num_leaves': 70, 
+         'objective':'regression',
+         'min_data_in_leaf':23,
+         'max_depth':3,
+         'learning_rate':0.1,
+         'num_iterations':630,
+         #'max_bin':5000,
+         #'verbosity':0,
+         'min_split_gain':90,
+         'random_state':RND_ST
+            }
+
+num_round = 20",code,,
+158,"lgbm = lgb.train(param, train_data, num_round)
+
+y_tr = lgbm.predict(X_train_sub_c)
+y_val = lgbm.predict(X_valid_sub_c)
+
+print('Train mae = ', mean_absolute_error(y_train_sub_c, y_tr))
+print('Valid mae = ', mean_absolute_error(y_valid_sub_c, y_val))",code,,
+159,"## Best achieved metrics with LightGBM
+## Train mae =  6460.697903755476
+## Valid mae =  17390.618087551717",code,,
+160,"mod = lgb.train(param, train_data_full, num_round)
+
+pred_fin = pd.DataFrame(np.around(mod.predict(X_test_cat)), columns=['SalePrice'])
+
+
+submission = pd.DataFrame(subm['Id'])
+
+submission = submission.join(pred_fin)
+
+submission.to_csv('/kaggle/working/light.csv', index=False)",code,,
+161,#### XGBoost,markdown,,
+162,"params_xgb = {
+    'max_depth':6, 
+    'eta':.16, 
+    'min_child_weight':2,
+    'colsample_bytree':0.8,
+    'subsample':1,
+    'seed':RND_ST, 
+   }
+
+num_round = 52",code,,
+163,"xgboost = xgb.train(params_xgb, dtrain_sub, num_round)
+
+y_tr = xgboost.predict(dtrain_sub)
+y_val = xgboost.predict(dvalid_sub)
+
+print('Train mae = ', mean_absolute_error(y_train_sub, y_tr))
+print('Valid mae = ', mean_absolute_error(y_test_sub, y_val))",code,,
+164,"### Train mae =  6033.02468161387
+### Valid mae =  15837.233826519692",code,,
+165,"mod = xgb.train(params_xgb, dtrain_full, num_round)
+
+pred_fin = pd.DataFrame(np.around(mod.predict(dtest)), columns=['SalePrice'])
+
+
+submission = pd.DataFrame(subm['Id'])
+
+submission = submission.join(pred_fin)
+
+submission.to_csv('/kaggle/working/xgb_01.csv', index=False)",code,,
+166,#### CatBoost,markdown,,
+167,"catboost = CatBoostRegressor(
+                          iterations=1220, 
+                          depth=4, 
+                          learning_rate=0.1, 
+                          loss_function='RMSE', 
+                          subsample=0.98,
+                          grow_policy='Depthwise',
+                          
+                          
+                          ###
+                          verbose=0, 
+                          random_seed=RND_ST)",code,,
+168,"catboost.fit(catboost_train)
+
+cat_y_tr = catboost.predict(X_train_sub_c)
+cat_y_val = catboost.predict(X_valid_sub_c)
+
+print('Train mae = ', mean_absolute_error(y_train_sub_c, cat_y_tr))
+print('Valid mae = ', mean_absolute_error(y_valid_sub_c, cat_y_val))",code,,
+169,"### CatBoost best
+### Train mae =  6801.760501396707
+### Valid mae =  16092.458600763324",code,,
+170,"catboost_1 = CatBoostRegressor(
+                          iterations=300, 
+                          #depth=4, 
+                          #learning_rate=0.1, 
+                          #loss_function='RMSE', 
+                          #subsample=0.4,
+                          #grow_policy='Depthwise',
+                          
+                          
+                          ###
+                          verbose=0, 
+                          random_seed=RND_ST)
+",code,,
+171,"catboost_1.fit(catboost_train_1)
+
+cat_y_tr = catboost_1.predict(X_train_cb_sub)
+cat_y_val = catboost_1.predict(X_valid_cb_sub)
+
+print('Train mae = ', mean_absolute_error(y_train_cb_sub, cat_y_tr))
+print('Valid mae = ', mean_absolute_error(y_valid_cb_sub, cat_y_val))",code,,
+172,"mae_tr = []
+mae_val = []
+estim = []
+
+for i in range(100,800,10):
+    mod = CatBoostRegressor(
+                          iterations=i,
+                          depth=4,
+                          verbose=0, 
+                          random_seed=RND_ST)
+    mod.fit(catboost_train_1)
+    
+    cat_y_tr = mod.predict(X_train_cb_sub)
+    cat_y_val = mod.predict(X_valid_cb_sub)
+
+    mae_tr.append(mean_absolute_error(y_train_cb_sub, cat_y_tr))
+    mae_val.append(mean_absolute_error(y_valid_cb_sub, cat_y_val))
+    estim.append(i)
+    
+plt.figure(figsize=(10,6))
+sns.lineplot(x=estim, y=mae_tr, label='Train')
+sns.lineplot(x=estim, y=mae_val, label='Valid');
+
+print(mae_tr[mae_tr.index(min(mae_val))])
+print(min(mae_val))
+print(estim[mae_val.index(min(mae_val))])",code,,
+173,,code,,
+174,### Fit and test the final model,markdown,,
+175,"model_rfr = RandomForestRegressor(n_estimators=270, max_leaf_nodes=20, max_features=23, n_jobs=-1, random_state=RND_ST)",code,,
+176,"model_gbr = GradientBoostingRegressor(n_estimators=590, max_features=24, max_depth=6, learning_rate=0.08, random_state=RND_ST)",code,,
+177,"model_gbr_ = GradientBoostingRegressor(n_estimators=810, max_features=24, max_depth=3, learning_rate=0.1, random_state=RND_ST)",code,,
+178,"model_gbr_more_feat = GradientBoostingRegressor(n_estimators=2000, max_features=26, max_depth=2, learning_rate=0.1, random_state=RND_ST)",code,,
+179,"gbr_new.fit(X_train_0, y_train)
+pred = gbr_new.predict(X_train_0)
+mean_absolute_error(y_train, pred)",code,,
+180,"mae(gbr_new, X_train_sub, X_test_sub, y_train_sub, y_test_sub)",code,,
+181,"### best mae 9095 7029
+### best mae_train 6672
+### best_mae_tesr 17325",code,,
+182,"### Make a prediction, create the submission file.",markdown,,
+183,#### Prediction for sklearn models,markdown,,
+184,"def prediction(model, feat_tr, feat_test, targ_tr):
+    
+    model.fit(feat_tr, targ_tr)
+    pred_final = pd.DataFrame((model.predict(feat_test)), columns=['SalePrice'])
+    
+    return(pred_final)",code,,
+185,"pred = np.around(prediction(gbr_new_3, X_train_2, X_test_2, y_train))
+
+submission = pd.DataFrame(subm['Id'])
+
+submission = submission.join(pred)
+
+submission.to_csv('/kaggle/working/grad_boost_new_3.csv', index=False)",code,,
+186,submission,code,,
+187,#### Prediction for boosting models,markdown,,
+188,"mod = catboost.fit(catboost_train_full)
+
+pred_fin = pd.DataFrame(np.around(mod.predict(X_test_cat)), columns=['SalePrice'])
+
+
+submission = pd.DataFrame(subm['Id'])
+
+submission = submission.join(pred_fin)
+
+submission.to_csv('/kaggle/working/catboost_01.csv', index=False)",code,,
+189,submission.head(),code,,
+190,"## Scoreboard 
+
+0.12868 - Rank 1645 - catboost, X_train_cat  
+0.12886 - Rank 1654 - catboost, X_train_cat  
+0.12910 - Rank 1683 - gbr_new_2, X_train_2  
+0.13866 - Rank 2403 - gbr_new, X_train_0 (more_features)  
+0.13934 - Rank 2433 - catboost, X_train_c  
+0.14346 - Rank 2755 - model_gbr_ with updated params, X_train_0 + Year feature.  
+0.14631 - Rank 2922 - model_gbr with updated params, X_train_0  
+0.15217 - Rank 3330 - model_gbr, X_train_0  
+0.20628 - Rank 4340 - very first try, with no features engeneering and just Random Forest Regressor",markdown,,
+191,"#### Best models  
+
+gbr_new = GradientBoostingRegressor(n_estimators=265, max_depth=4, max_features=28, random_state=RND_ST)    
+
+gbr_new_2 = GradientBoostingRegressor(n_estimators=385, max_depth=3, max_features=24, random_state=RND_ST) 
+
+catboost = CatBoostRegressor(
+                         iterations=1300, 
+                          depth=4, 
+                          learning_rate=0.1, 
+                          loss_function='RMSE', 
+                          subsample=0.8,
+                          grow_policy='Depthwise',
+                          verbose=0, 
+                          random_seed=RND_ST))
+",markdown,,

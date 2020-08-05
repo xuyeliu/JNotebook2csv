@@ -1,0 +1,974 @@
+ID,Source,Type,Category,Stage
+0,"<a class=""anchor"" id=""0""></a>
+# **A Reference Guide to Feature Selection Methods**
+
+
+Hello friends,
+
+
+**Feature Selection** is the process of selecting optimal number of features from a larger set of features. There are several advantages of this feature selection process and also there are various techniques available for this feature selection process. In this kernel, we will look at these advantages and various techniques for feature selection.
+
+
+So, let's get started.",markdown,,
+1,"This kernel is based on Soledad Galli's course - [Feature Selection for Machine Learning](https://www.udemy.com/course/feature-selection-for-machine-learning/)
+
+She had done a fabulous job in her above course wherein she had put all the major feature selection techniques together at one place. I have adapted code and instructions from her course in this kernel. I like to congratulate her for her excellent work.",markdown,,
+2,"**As always, I hope you find this kernel useful and your <font color=""red""><b>UPVOTES</b></font> would be highly appreciated**.
+
+",markdown,,
+3,"<a class=""anchor"" id=""0.1""></a>
+# **Table of Contents**
+
+
+1.	[Introduction to Feature Selection](#1)
+2.	[Filter Methods](#2)
+   - 2.1. [Basic Methods](#2.1)
+        - 2.1.1 [Remove Constant Features](#2.1.1)
+        - 2.1.2 [Remove Quasi-Constant Features](#2.1.2)
+   - 2.2 [Univariate Selection Methods](#2.2)
+        - 2.2.1 [SelectKBest](#2.2.1)
+        - 2.2.2 [SelectPercentile](#2.2.2)
+   - 2.3 [Information Gain](#2.3)
+   - 2.4 [Fisher Score (chi-square implementation)](#2.4)
+   - 2.5 [ANOVA F-Value for Feature Selection](#2.5)
+   - 2.6 [Correlation-Matrix with Heatmap](#2.6)
+3.	[Wrapper Methods](#3)
+   - 3.1 [Forward Selection](#3.1)
+   - 3.2 [Backward Elimination](#3.2)
+   - 3.3 [Exhaustive Feature Selection](#3.3)
+   - 3.4 [Recursive Feature Elimination](#3.4)
+   - 3.5 [Recursive Feature Elimination with Cross-Validation](#3.5)
+4. [Embedded Methods](#4)
+   - 4.1 [LASSO Regression](#4.1)
+   - 4.2 [Random Forest Importance](#4.2)
+5. [How to choose the right feature selection method](#5)
+6. [Tips and tricks for feature selection](#6)   
+7. [References](#7)",markdown,,
+4,"# **1. Introduction to Feature Selection** <a class=""anchor"" id=""1""></a>
+
+[Table of Contents](#0.1)
+
+
+## **Feature selection**
+
+- **Feature selection** or **variable selection** is the process of selecting a subset of relevant features or variables from the total features of a level in a data set to build machine learning algorithms. 
+
+
+## **Advantages of selecting features**
+
+- There are various advantages of feature selection process. These are as follows:-
+
+  1.	Improved accuracy
+  2.    Simple models are easier to interpret.
+  3.	Shorter training times
+  4.	Enhanced generalization by reducing Overfitting
+  5.	Easier to implement by software developers
+  6.	Reduced risk of data errors by model use
+  7.	Variable redundancy
+  8.	Bad learning behaviour in high dimensional spaces
+
+
+## **Feature Selection – Techniques**
+
+
+- Feature selection techniques are categorized into 3 typers. These are as follows:-
+
+  1.    Filter methods
+  2.	Wrapper methods
+  3.	Embedded methods
+  
+  
+## **Filter Methods**
+
+- Filter methods consists of various techniques as given below:-
+
+  1.    Basic methods
+  2.    Univariate methods
+  3.    Information gain
+  4.    Fischer score
+  5.    Correlation Matrix with Heatmap
+  
+  
+## **Wrapper Methods**
+
+- Wrapper methods consists of the following techniques:-
+
+  1.    Forward Selection
+  2.    Backward Elimination
+  3.    Exhaustive Feature Selection
+  4.    Recursive Feature Elimination
+  5.    Recursive Feature Elimination with Cross-Validation
+  
+  
+  
+## **Embedded Methods**
+
+- Embedded methods consists of the following techniques:-
+
+  1.   LASSO
+  2.   RIDGE
+  3.   Tree Importance
+  
+  
+- Now, we will discuss these methods in detail.
+",markdown,,
+5,"# **2. Filter Methods** <a class=""anchor"" id=""2""></a>
+
+[Table of Contents](#0.1)
+
+
+- Filter methods are generally used as a preprocessing step. The selection of features is independent of any machine learning algorithms. Instead, features are selected on the basis of their scores in various statistical tests for their correlation with the outcome variable. The characteristics of these methods are as follows:-
+
+  - These methods rely on the characteristics of the data (feature characteristics)
+  - They do not use machine learning algorithms.
+  - These are model agnostic.
+  - They tend to be less computationally expensive.
+  - They usually give lower prediction performance than wrapper methods.
+  - They are very well suited for a quick screen and removal of irrelevant features.
+  
+  
+ - Filter methods consists of various techniques as given below:-
+
+   -  2.1.    Basic methods
+   -  2.2.    Univariate feature selection
+   -  2.3.    Information gain
+   -  2.4.    Fischer score
+   -  2.5.     ANOVA F-Value for Feature Selection
+   -  2.6.    Correlation Matrix with Heatmap  
+  
+- Filter methods can be explained with the help of following graphic:",markdown,,
+6,"![FilterMethods](https://res.cloudinary.com/dyd911kmh/image/upload/f_auto,q_auto:best/v1537552825/Image3_fqsh79.png)
+
+
+### Image source : AnalyticsVidhya",markdown,,
+7,"## **2.1 Basic methods** <a class=""anchor"" id=""2.1""></a>
+
+[Table of Contents](#0.1)
+
+
+- Under basic methods, we remove constant and quasi-constant features.",markdown,,
+8,"## **2.1.1 Remove constant features** <a class=""anchor"" id=""2.1.1""></a>
+
+[Table of Contents](#0.1)
+
+- Constant features are those that show the same value, just one value, for all the observations of the dataset. This is, the same value for all the rows of the dataset. These features provide no information that allows a machine learning model to discriminate or predict a target.
+
+- Identifying and removing constant features, is an easy first step towards feature selection and more easily interpretable machine learning models. To identify constant features, we can use the VarianceThreshold function from sklearn.
+
+- I will demonstrate how to identify constant features using the Santander Customer Satisfaction dataset from Kaggle.
+
+- Source :
+
+- https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.VarianceThreshold.html
+
+- https://scikit-learn.org/stable/modules/feature_selection.html",markdown,,
+9,"# This Python 3 environment comes with many helpful analytics libraries installed
+# It is defined by the kaggle/python docker image: https://github.com/kaggle/docker-python
+# For example, here's several helpful packages to load in 
+
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Input data files are available in the ""../input/"" directory.
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+import os
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+
+# Any results you write to the current directory are saved as output.
+",code,,
+10,"# ignore warnings
+
+import warnings
+warnings.filterwarnings('ignore')",code,,
+11,"# import the Santander customer satisfaction dataset from Kaggle
+
+X_train = pd.read_csv('/kaggle/input/santander-customer-satisfaction/train.csv', nrows=35000)
+
+X_test = pd.read_csv('/kaggle/input/santander-customer-satisfaction/test.csv', nrows=15000)",code,,
+12,"# drop TARGET label from X_train
+
+X_train.drop(labels=['TARGET'], axis=1, inplace = True)",code,,
+13,"# check shape of training and test sets
+
+X_train.shape, X_test.shape",code,,
+14,"### **Important**
+
+- In all feature selection procedures, it is good practice to select the features by examining only the training set. This is done to avoid overfitting.",markdown,,
+15,"### **Using variance threshold from sklearn**
+
+- Variance threshold from sklearn is a simple baseline approach to feature selection. It removes all features which variance doesn’t meet some threshold. By default, it removes all zero-variance features, i.e., features that have the same value in all samples.",markdown,,
+16,"# using sklearn variancethreshold to find constant features
+
+from sklearn.feature_selection import VarianceThreshold
+sel = VarianceThreshold(threshold=0)
+sel.fit(X_train)  # fit finds the features with zero variance",code,,
+17,"# get_support is a boolean vector that indicates which features are retained
+# if we sum over get_support, we get the number of features that are not constant
+sum(sel.get_support())",code,,
+18,"# alternate way of finding non-constant features
+len(X_train.columns[sel.get_support()])",code,,
+19,"# print the constant features
+print(
+    len([
+        x for x in X_train.columns
+        if x not in X_train.columns[sel.get_support()]
+    ]))
+
+[x for x in X_train.columns if x not in X_train.columns[sel.get_support()]]",code,,
+20,"- We can see that there are 51 columns / variables that are constant. This means that 51 variables show the same value, just one value, for all the observations of the training set.",markdown,,
+21,- We then use the transform function to reduce the training and testing sets.,markdown,,
+22,"# we can then drop these columns from the train and test sets
+X_train = sel.transform(X_train)
+X_test = sel.transform(X_test)",code,,
+23,"# check the shape of training and test set
+
+X_train.shape, X_test.shape",code,,
+24,"- We can see how by removing constant features, we managed to reduced the feature space quite a bit.",markdown,,
+25,"## **2.1.2 Remove quasi-constant features** <a class=""anchor"" id=""2.1.2""></a>
+
+[Table of Contents](#0.1)
+
+- Quasi-constant features are those that show the same value for the great majority of the observations of the dataset. In general, these features provide little if any information that allows a machine learning model to discriminate or predict a target. But there can be exceptions. So we should be careful when removing these type of features. Identifying and removing quasi-constant features, is an easy first step towards feature selection and more easily interpretable machine learning models.
+
+- To identify quasi-constant features, we can once again use the VarianceThreshold function from sklearn.
+
+- Here I will demonstrate how to identify quasi-constant features using the Santander Customer Satisfaction dataset.",markdown,,
+26,"# import the Santander customer satisfaction dataset from Kaggle
+
+X_train = pd.read_csv('/kaggle/input/santander-customer-satisfaction/train.csv', nrows=35000)
+
+X_test = pd.read_csv('/kaggle/input/santander-customer-satisfaction/test.csv', nrows=15000)",code,,
+27,"# drop TARGET label from X_train
+
+X_train.drop(labels=['TARGET'], axis=1, inplace = True)",code,,
+28,"# check shape of training and test sets
+
+X_train.shape, X_test.shape",code,,
+29,"### **Removing quasi-constant features**
+
+#### **Using variance threshold from sklearn**
+
+- Variance threshold from sklearn is a simple baseline approach to feature selection. It removes all features which variance doesn’t meet some threshold. By default, it removes all zero-variance features, i.e., features that have the same value in all samples.
+
+- Here, I will change the default threshold to remove almost / quasi-constant features.",markdown,,
+30,"sel = VarianceThreshold(threshold=0.01)  # 0.1 indicates 99% of observations approximately
+
+sel.fit(X_train)  # fit finds the features with low variance",code,,
+31,"# get_support is a boolean vector that indicates which features 
+# are retained. If we sum over get_support, we get the number
+# of features that are not quasi-constant
+sum(sel.get_support())",code,,
+32,"# alternative way of doing the above operation:
+len(X_train.columns[sel.get_support()])",code,,
+33,"# finally we can print the quasi-constant features
+print(
+    len([
+        x for x in X_train.columns
+        if x not in X_train.columns[sel.get_support()]
+    ]))
+
+[x for x in X_train.columns if x not in X_train.columns[sel.get_support()]]",code,,
+34,- We can see that 107 columns / variables are almost constant. This means that 107 variables show predominantly one value for ~99% the observations of the training set.,markdown,,
+35,"# percentage of observations showing each of the different values
+X_train['ind_var31'].value_counts() / np.float(len(X_train))",code,,
+36,"- We can see that > 99% of the observations show one value, 0. Therefore, this feature is almost constant.",markdown,,
+37,"# we can then remove the features from training and test set
+X_train = sel.transform(X_train)
+X_test = sel.transform(X_test)",code,,
+38,"# check the shape of training and test set
+X_train.shape, X_test.shape",code,,
+39,"- By removing constant and quasi-constant features, we reduced the feature space from 370 to 263. We can see that more than 100 features were removed from the present dataset.",markdown,,
+40,"## **2.2 Univariate selection methods** <a class=""anchor"" id=""2.2""></a>
+
+[Table of Contents](#0.1)
+
+
+- Univariate feature selection methods works by selecting the best features based on univariate statistical tests like ANOVA. It can be seen as a preprocessing step to an estimator. Scikit-learn exposes feature selection routines as objects that implement the transform method.
+
+- The methods based on F-test estimate the degree of linear dependency between two random variables. They assume a linear relationship between the feature and the target. These methods also assume that the variables follow a Gaussian distribution.
+
+- There are 4 methods that fall under this category :-
+
+  1. SelectKBest
+  2. SelectPercentile
+  3. SelectFpr, SelectFdr, or family wise error SelectFwe
+  4. GenericUnivariateSelection
+  
+Source : https://scikit-learn.org/stable/modules/feature_selection.html
+
+
+- Here, I will limit the discussion to SelectKBest and SelectPercentile, because these two are most commonly used in practice.",markdown,,
+41,"## **2.2.1 SelectKBest** <a class=""anchor"" id=""2.2.1""></a>
+
+[Table of Contents](#0.1)
+
+- This method select features according to the k highest scores.
+
+- For instance, we can perform a chi-square test to the samples to retrieve only the two best features from iris dataset as follows:
+
+Source : https://scikit-learn.org/stable/modules/feature_selection.html
+
+https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.SelectKBest.html#sklearn.feature_selection.SelectKBest",markdown,,
+42,"from sklearn.datasets import load_iris
+from sklearn.feature_selection import SelectKBest, chi2
+X, y = load_iris(return_X_y=True)
+X.shape",code,,
+43,"# select the two best features
+X_new = SelectKBest(chi2, k=2).fit_transform(X, y)
+X_new.shape",code,,
+44,"- Thus, we have selected the two best features from the iris dataset.",markdown,,
+45,"## **2.2.2 SelectPercentile** <a class=""anchor"" id=""2.2.2""></a>
+
+[Table of Contents](#0.1)
+
+
+- Select features according to a percentile of the highest scores.
+
+Source : https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.SelectPercentile.html#sklearn.feature_selection.SelectPercentile",markdown,,
+46,"from sklearn.datasets import load_digits
+from sklearn.feature_selection import SelectPercentile, chi2
+X, y = load_digits(return_X_y=True)
+X.shape
+",code,,
+47,"# now select features based on top 10 percentile
+X_new = SelectPercentile(chi2, percentile=10).fit_transform(X, y)
+X_new.shape",code,,
+48,- We can see that only 7 features lie on the top 10 percentile and hence we select them accordingly.,markdown,,
+49,"## **Important information**
+
+- These objects take as input a scoring function that returns univariate scores and p-values (or only scores for [SelectKBest](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.SelectKBest.html#sklearn.feature_selection.SelectKBest) and [SelectPercentile](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.SelectPercentile.html#sklearn.feature_selection.SelectPercentile):
+
+
+- For regression tasks: [f_regression](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.f_regression.html#sklearn.feature_selection.f_regression), [mutual_info_regression](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_regression.html#sklearn.feature_selection.mutual_info_regression)
+
+- For classification tasks: [chi2](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.chi2.html#sklearn.feature_selection.chi2), 
+[f_classif](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.f_classif.html#sklearn.feature_selection.f_classif), [mutual_info_classif](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_classif.html#sklearn.feature_selection.mutual_info_classif)
+
+The methods based on F-test estimate the degree of linear dependency between two random variables. On the other hand, mutual information methods can capture any kind of statistical dependency, but being nonparametric, they require more samples for accurate estimation.",markdown,,
+50,"## **Feature selection with sparse data**
+
+- If you use sparse data (i.e. data represented as sparse matrices), [chi2](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.chi2.html#sklearn.feature_selection.chi2), [mutual_info_regression](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_regression.html#sklearn.feature_selection.mutual_info_regression), [mutual_info_classif](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_classif.html#sklearn.feature_selection.mutual_info_classif) will deal with the data without making it dense.
+
+
+Source : https://scikit-learn.org/stable/modules/feature_selection.html",markdown,,
+51,"## **Warning** 
+
+- Beware not to use a regression scoring function with a classification problem, you will get useless results.",markdown,,
+52,"## **2.3 Information Gain** <a class=""anchor"" id=""2.3""></a>
+
+[Table of Contents](#0.1)
+
+
+- **Information gain** or **mutual information** measures how much information the presence/absence of a feature contributes to making the correct prediction on the target.
+
+
+- In terms of  [wikipedia](https://en.wikipedia.org/wiki/Mutual_information):
+
+
+   - **Mutual information measures the information that X and Y share: It measures how much knowing one of these        variables reduces uncertainty about the other. For example, if X and Y are independent, then knowing X does        not give any information about Y and vice versa, so their mutual information is zero. At the other extreme, if      X is a deterministic function of Y and Y is a deterministic function of X then all information conveyed by X        is shared with Y: knowing X determines the value of Y and vice versa. As a result, in this case the mutual          information is the same as the uncertainty contained in Y (or X) alone, namely the entropy of Y (or X).            Moreover, this mutual information is the same as the entropy of X and as the entropy of Y. (A very special          case of this is when X and Y are the same random variable.)**
+",markdown,,
+53,"## **mutual_info_classif**
+
+
+- It estimates mutual information for a discrete target variable.
+
+- Mutual information (MI) between two random variables is a non-negative value, which measures the dependency between the variables. It is equal to zero if and only if two random variables are independent, and higher values mean higher dependency. 
+
+- This function relies on nonparametric methods based on entropy estimation from k-nearest neighbors distances.
+
+- It can be used for univariate features selection.
+
+- Source : 
+
+https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_classif.html#sklearn.feature_selection.mutual_info_classif",markdown,,
+54,"## **mutual_info_regression**
+
+- Estimate mutual information for a continuous target variable.
+
+- Mutual information (MI) between two random variables is a non-negative value, which measures the dependency between the variables. It is equal to zero if and only if two random variables are independent, and higher values mean higher dependency.
+
+- The function relies on nonparametric methods based on entropy estimation from k-nearest neighbors distances.
+
+- It can be used for univariate features selection
+
+- Source : 
+
+https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_regression.html#sklearn.feature_selection.mutual_info_regression",markdown,,
+55,"## **2.4 Fisher Score (chi-square implementation)** <a class=""anchor"" id=""2.4""></a>
+
+[Table of Contents](#0.1)
+
+- It is the **chi-square implementation** in scikit-learn. It computes chi-squared stats between each non-negative feature and class.
+
+- This score should be used to evaluate categorical variables in a classification task. It compares the observed distribution of the different classes of target Y among the different categories of the feature, against the expected distribution of the target classes, regardless of the feature categories. 
+",markdown,,
+56,"# load libraries
+from sklearn.datasets import load_iris
+from sklearn.feature_selection import SelectKBest, chi2",code,,
+57,"# Load Data
+# load iris data
+iris = load_iris()
+
+# create features and target
+X = iris.data
+y = iris.target
+
+# convert to categorical data by converting data to integers
+X = X.astype(int)",code,,
+58,"# Compare Chi-Squared Statistics
+# select two features with highest chi-squared statistics
+chi2_selector = SelectKBest(chi2, k=2)
+X_kbest = chi2_selector.fit_transform(X, y)",code,,
+59,"# View results
+print('Original number of features:', X.shape[1])
+print('Reduced number of features:', X_kbest.shape[1])",code,,
+60,- We can see that the above code helps us to select the 2 best features based on Fisher score.,markdown,,
+61,"## **2.5 ANOVA F-value For Feature Selection**  <a class=""anchor"" id=""2.5""></a>
+
+[Table of Contents](#0.1)
+
+
+- Compute the ANOVA F-value for the provided sample.
+
+- If the features are categorical, we will calculate a chi-square statistic between each feature and the target vector. However, if the features are quantitative, we will compute the ANOVA F-value between each feature and the target vector.
+
+- The F-value scores examine if, when we group the numerical feature by the target vector, the means for each group are significantly different.",markdown,,
+62,"# Load libraries
+from sklearn.datasets import load_iris
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import f_classif",code,,
+63,"# Load iris data
+iris = load_iris()
+
+# Create features and target
+X = iris.data
+y = iris.target",code,,
+64,"# Select Features With Best ANOVA F-Values
+
+# Create an SelectKBest object to select features with two best ANOVA F-Values
+fvalue_selector = SelectKBest(f_classif, k=2)
+
+# Apply the SelectKBest object to the features and target
+X_kbest = fvalue_selector.fit_transform(X, y)",code,,
+65,"# View results
+print('Original number of features:', X.shape[1])
+print('Reduced number of features:', X_kbest.shape[1])",code,,
+66,- We can see that the above code helps us to select the 2 best features based on ANOVA F-Value.,markdown,,
+67,"## **2.6 Correlation-Matrix with Heatmap** <a class=""anchor"" id=""2.6""></a>
+
+[Table of Contents](#0.1)
+
+
+- **Correlation** is a measure of the linear relationship of 2 or more variables. Through correlation, we can predict one variable from the other.
+
+- **Good variables are highly correlated with the target**.
+
+- Correlated predictor variables provide redundant information.
+
+- **Variables should be correlated with the target but uncorrelated among themselves**.
+
+
+- Correlation Feature Selection evaluates subsets of features on the basis of the following hypothesis: 
+
+   - ""Good feature subsets contain features highly correlated with the target, yet uncorrelated to each other"".
+   
+   
+- In this section,  I will demonstrate how to select features based on correlation between two features. We can find features that are correlated with each other. By identifying these features, we can then decide which features we want to keep, and which ones we want to remove.
+",markdown,,
+68,"- Using Pearson correlation our returned coefficient values will vary between -1 and 1.
+
+- If the correlation between two features is 0 this means that changing any of these two features will not affect the other.
+
+- If the correlation between two features is greater than 0 this means that increasing the values in one feature will make increase also the values in the other feature (the closer the correlation coefficient is to 1 and the stronger is going to be this bond between the two different features).
+
+- If the correlation between two features is less than 0 this means that increasing the values in one feature will make decrease the values in the other feature (the closer the correlation coefficient is to -1 and the stronger is going to be this relationship between the two different features).
+
+- In this analysis we will check if the selected variables are highly correlated with each other. If they are, we would then need to keep just one of the correlated ones and drop the others.",markdown,,
+69,"# Load iris data
+from sklearn.datasets import load_iris
+iris = load_iris()
+
+# Create features and target
+X = iris.data
+y = iris.target",code,,
+70,"# Convert feature matrix into DataFrame
+df = pd.DataFrame(X)
+
+# View the data frame
+print(df)",code,,
+71,"# Create correlation matrix
+corr_matrix = df.corr()
+print(corr_matrix)",code,,
+72,"# Create correlation heatmap
+plt.figure(figsize=(8,6))
+plt.title('Correlation Heatmap of Iris Dataset')
+a = sns.heatmap(corr_matrix, square=True, annot=True, fmt='.2f', linecolor='black')
+a.set_xticklabels(a.get_xticklabels(), rotation=30)
+a.set_yticklabels(a.get_yticklabels(), rotation=30)           
+plt.show()    
+",code,,
+73," # Select upper triangle of correlation matrix
+upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
+upper    ",code,,
+74,"# Find index of feature columns with correlation greater than 0.9
+to_drop = [column for column in upper.columns if any(upper[column] > 0.9)]
+print(to_drop)",code,,
+75,"# Drop Marked Features
+df1 = df.drop(df.columns[to_drop], axis=1)
+print(df1)
+",code,,
+76,- We can see that we have dropped the third column from the original dataset.,markdown,,
+77,"# **3. Wrapper Methods** <a class=""anchor"" id=""3""></a>
+
+[Table of Contents](#0.1)
+
+
+- In wrapper methods, we try to use a subset of features and train a model using them. Based on the inferences that we draw from the previous model, we decide to add or remove features from the subset. The problem is essentially reduced to a search problem. These methods are usually computationally very expensive.
+
+- Some common examples of wrapper methods are 
+
+  - 1. Forward selection, 
+  - 2. Backward elimination, 
+  - 3. Exhaustive feature selection,
+  - 4. Recursive feature elimination.
+  - 5. Recursive feature elimination with cross-validation
+  
+  
+- Wrapper methods can be explained with the help of following graphic:
+",markdown,,
+78,"![Wrapper Methods](https://res.cloudinary.com/dyd911kmh/image/upload/f_auto,q_auto:best/v1537549832/Image2_ajaeo8.png)
+
+
+
+### Image source : AnalyticsVidhya",markdown,,
+79,"## **3.1 Forward Selection** <a class=""anchor"" id=""3.1""></a>
+
+[Table of Contents](#0.1) 
+
+
+- Forward selection is an iterative method in which we start with having no feature in the model. In each iteration, we keep adding the feature which best improves our model till an addition of a new variable does not improve the performance of the model.
+
+- The procedure starts with an empty set of features [reduced set]. The best of the original features is determined and added to the reduced set. At each subsequent iteration, the best of the remaining original attributes is added to the set.
+
+- Step forward feature selection starts by evaluating all features individually and selects the one that generates the best performing algorithm, according to a pre-set evaluation criteria. In the second step, it evaluates all possible combinations of the selected feature and a second feature, and selects the pair that produce the best performing algorithm based on the same pre-set criteria.
+
+- The pre-set criteria can be the roc_auc for classification and the r squared for regression for example.
+
+- This selection procedure is called greedy, because it evaluates all possible single, double, triple and so on feature combinations. Therefore, it is quite computationally expensive, and sometimes, if feature space is big, even unfeasible.
+
+- There is a special package for python that implements this type of feature selection: mlxtend.
+
+- In the mlxtend implementation of the step forward feature selection, the stopping criteria is an arbitrarily set number of features. So the search will finish when we reach the desired number of selected features.
+
+- I will demonstrate the Step Forward feature selection algorithm from mlxtend using the House Price dataset.
+",markdown,,
+80,"# step forward feature selection
+
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import r2_score
+from mlxtend.feature_selection import SequentialFeatureSelector as SFS",code,,
+81,"#load dataset
+data = pd.read_csv('/kaggle/input/house-prices-advanced-regression-techniques/train.csv')
+data.shape",code,,
+82,"# In practice, feature selection should be done after data pre-processing,
+# so ideally, all the categorical variables are encoded into numbers,
+# and then you can assess how deterministic they are of the target
+
+# here for simplicity I will use only numerical variables
+# select numerical columns:
+
+numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+numerical_vars = list(data.select_dtypes(include=numerics).columns)
+data = data[numerical_vars]
+data.shape",code,,
+83,"# separate train and test sets
+X_train, X_test, y_train, y_test = train_test_split(
+    data.drop(labels=['SalePrice'], axis=1),
+    data['SalePrice'],
+    test_size=0.3,
+    random_state=0)
+
+X_train.shape, X_test.shape",code,,
+84,"# find and remove correlated features
+def correlation(dataset, threshold):
+    col_corr = set()  # Set of all the names of correlated columns
+    corr_matrix = dataset.corr()
+    for i in range(len(corr_matrix.columns)):
+        for j in range(i):
+            if abs(corr_matrix.iloc[i, j]) > threshold: # we are interested in absolute coeff value
+                colname = corr_matrix.columns[i]  # getting the name of column
+                col_corr.add(colname)
+    return col_corr
+
+corr_features = correlation(X_train, 0.8)
+print('correlated features: ', len(set(corr_features)) )",code,,
+85,"# removed correlated  features
+X_train.drop(labels=corr_features, axis=1, inplace=True)
+X_test.drop(labels=corr_features, axis=1, inplace=True)
+
+X_train.shape, X_test.shape",code,,
+86,"X_train.fillna(0, inplace=True)",code,,
+87,"# step forward feature selection
+
+from mlxtend.feature_selection import SequentialFeatureSelector as SFS
+
+sfs1 = SFS(RandomForestRegressor(), 
+           k_features=10, 
+           forward=True, 
+           floating=False, 
+           verbose=2,
+           scoring='r2',
+           cv=3)
+
+sfs1 = sfs1.fit(np.array(X_train), y_train)",code,,
+88,sfs1.k_feature_idx_,code,,
+89,X_train.columns[list(sfs1.k_feature_idx_)],code,,
+90,- We can see that forward feature selection results in the above columns being selected from all the given columns.,markdown,,
+91,"## **3.2 Backward Elimination** <a class=""anchor"" id=""3.2""></a>
+
+[Table of Contents](#0.1) 
+
+
+- In backward elimination, we start with all the features and removes the least significant feature at each iteration which improves the performance of the model. We repeat this until no improvement is observed on removal of features.
+
+- The procedure starts with the full set of attributes. At each step, it removes the worst attribute remaining in the set.
+",markdown,,
+92,"# step backward feature elimination
+
+sfs1 = SFS(RandomForestRegressor(), 
+           k_features=10, 
+           forward=False, 
+           floating=False, 
+           verbose=2,
+           scoring='r2',
+           cv=3)
+
+sfs1 = sfs1.fit(np.array(X_train), y_train)",code,,
+93,sfs1.k_feature_idx_,code,,
+94,X_train.columns[list(sfs1.k_feature_idx_)],code,,
+95,"- So, backward feature elimination results in the following columns being selected.",markdown,,
+96,"## **3.3 Exhaustive Feature Selection** <a class=""anchor"" id=""3.3""></a>
+
+[Table of Contents](#0.1) 
+
+
+- In an exhaustive feature selection the best subset of features is selected, over all possible feature subsets, by optimizing a specified performance metric for a certain machine learning algorithm. For example, if the classifier is a logistic regression and the dataset consists of 4 features, the algorithm will evaluate all 15 feature combinations as follows:
+
+  - all possible combinations of 1 feature
+  - all possible combinations of 2 features
+  - all possible combinations of 3 features
+  - all the 4 features
+  
+  
+and select the one that results in the best performance (e.g., classification accuracy) of the logistic regression classifier.
+
+- This is another greedy algorithm as it evaluates all possible feature combinations. It is quite computationally expensive, and sometimes, if feature space is big, even unfeasible.
+
+- There is a special package for python that implements this type of feature selection: mlxtend.
+
+- In the mlxtend implementation of the exhaustive feature selection, the stopping criteria is an arbitrarily set number of features. So the search will finish when we reach the desired number of selected features.
+
+- This is somewhat arbitrary because we may be selecting a subopimal number of features, or likewise, a high number of features.",markdown,,
+97,"## **3.4 Recursive Feature elimination** <a class=""anchor"" id=""3.4""></a>
+
+[Table of Contents](#0.1) 
+
+
+- It is a greedy optimization algorithm which aims to find the best performing feature subset. It repeatedly creates models and keeps aside the best or the worst performing feature at each iteration. It constructs the next model with the left features until all the features are exhausted. It then ranks the features based on the order of their elimination.
+
+- Recursive feature elimination performs a greedy search to find the best performing feature subset. It iteratively creates models and determines the best or the worst performing feature at each iteration. It constructs the subsequent models with the left features until all the features are explored. It then ranks the features based on the order of their elimination. In the worst case, if a dataset contains N number of features RFE will do a greedy search for 2N combinations of features.
+
+- Source : https://scikit-learn.org/stable/auto_examples/feature_selection/plot_rfe_digits.html#sphx-glr-auto-examples-feature-selection-plot-rfe-digits-py",markdown,,
+98,"## **3.5 Recursive Feature Elimination with Cross-Validation** <a class=""anchor"" id=""3.5""></a>
+
+[Table of Contents](#0.1) 
+
+
+- **Recursive Feature Elimination with Cross-Validated (RFECV)** feature selection technique selects the best subset of features for the estimator by removing 0 to N features iteratively using recursive feature elimination.
+
+- Then it selects the best subset based on the accuracy or cross-validation score or roc-auc of the model. Recursive feature elimination technique eliminates n features from a model by fitting the model multiple times and at each step, removing the weakest features.
+
+- Please see my kernel - [Extensive Analysis - EDA + FE + Modelling : Section 19 Recursive FeaTure Elimination with Cross-Validation](https://www.kaggle.com/prashant111/extensive-analysis-eda-fe-modelling)
+
+- Source : https://scikit-learn.org/stable/auto_examples/feature_selection/plot_rfe_with_cross_validation.html#sphx-glr-auto-examples-feature-selection-plot-rfe-with-cross-validation-py",markdown,,
+99,"# **4. Embedded Methods** <a class=""anchor"" id=""4""></a>
+
+[Table of Contents](#0.1)
+
+
+- Embedded methods are iterative in a sense that takes care of each iteration of the model training process and carefully extract those features which contribute the most to the training for a particular iteration. Regularization methods are the most commonly used embedded methods which penalize a feature given a coefficient threshold.
+
+- This is why Regularization methods are also called penalization methods that introduce additional constraints into the optimization of a predictive algorithm (such as a regression algorithm) that bias the model toward lower complexity (fewer coefficients).
+
+- Some of the most popular examples of these methods are LASSO and RIDGE regression which have inbuilt penalization functions to reduce overfitting.
+
+- Embedded methods can be explained with the help of following graphic:
+",markdown,,
+100,"![Embedded Methods](https://www.analyticsvidhya.com/wp-content/uploads/2016/11/Embedded_1.png)
+
+
+### Image source : AnalyticsVidhya",markdown,,
+101,"## **4.1 ** LASSO Regression<a class=""anchor"" id=""4.1""></a>
+
+[Table of Contents](#0.1)
+
+
+- Lasso regression performs L1 regularization which adds penalty equivalent to absolute value of the magnitude of coefficients.
+
+- Regularisation consists in adding a penalty to the different parameters of the machine learning model to reduce the freedom of the model and in other words to avoid overfitting. In linear model regularisation, the penalty is applied over the coefficients that multiply each of the predictors. From the different types of regularisation, Lasso or l1 has the property that is able to shrink some of the coefficients to zero. Therefore, that feature can be removed from the model.
+
+- I will demonstrate how to select features using the Lasso regularisation on the House Price dataset from Kaggle.",markdown,,
+102,"#load libraries
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import Lasso
+from sklearn.feature_selection import SelectFromModel
+from sklearn.preprocessing import StandardScaler",code,,
+103,"# load dataset
+data = pd.read_csv('/kaggle/input/house-prices-advanced-regression-techniques/train.csv')
+data.shape",code,,
+104,"# In practice, feature selection should be done after data pre-processing,
+# so ideally, all the categorical variables are encoded into numbers,
+# and then you can assess how deterministic they are of the target
+
+# here for simplicity I will use only numerical variables
+# select numerical columns:
+
+numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+numerical_vars = list(data.select_dtypes(include=numerics).columns)
+data = data[numerical_vars]
+data.shape",code,,
+105,"# separate train and test sets
+X_train, X_test, y_train, y_test = train_test_split(
+    data.drop(labels=['SalePrice'], axis=1),
+    data['SalePrice'],
+    test_size=0.3,
+    random_state=0)
+
+X_train.shape, X_test.shape",code,,
+106,"# the features in the house dataset are in very
+# different scales, so it helps the regression to scale them
+
+scaler = StandardScaler()
+scaler.fit(X_train.fillna(0))",code,,
+107,"# here, again I will train a Lasso Linear regression and select
+# the non zero features in one line.
+# bear in mind that the linear regression object from sklearn does
+# not allow for regularisation. So If you want to make a regularised
+# linear regression you need to import specifically ""Lasso""
+# that is the l1 version of the linear regression
+# alpha is the penalisation here, so I set it high in order
+# to force the algorithm to shrink some coefficients
+
+sel_ = SelectFromModel(Lasso(alpha=100))
+sel_.fit(scaler.transform(X_train.fillna(0)), y_train)",code,,
+108,sel_.get_support(),code,,
+109,"# make a list with the selected features and print the outputs
+selected_feat = X_train.columns[(sel_.get_support())]
+
+print('total features: {}'.format((X_train.shape[1])))
+print('selected features: {}'.format(len(selected_feat)))
+print('features with coefficients shrank to zero: {}'.format(
+    np.sum(sel_.estimator_.coef_ == 0)))",code,,
+110,"- We can see that Lasso regularisation helps to remove non-important features from the dataset. So, increasing the penalisation will result in increase the number of features removed. Therefore, we need to keep an eye and monitor that we don't set a penalty too high so that to remove even important features, or too low and then not remove non-important features.
+
+- If the penalty is too high and important features are removed, we will notice a drop in the performance of the algorithm and then realise that we need to decrease the regularisation.",markdown,,
+111,"## **4.2 ** Random Forest Importance<a class=""anchor"" id=""4.2""></a>
+
+[Table of Contents](#0.1)
+
+- Random forests are one the most popular machine learning algorithms. They are so successful because they provide in general a good predictive performance, low overfitting and easy interpretability. This interpretability is given by the fact that it is straightforward to derive the importance of each variable on the tree decision. In other words, it is easy to compute how much each variable is contributing to the decision.
+
+- Random forests consist of 4-12 hundred decision trees, each of them built over a random extraction of the observations from the dataset and a random extraction of the features. Not every tree sees all the features or all the observations, and this guarantees that the trees are de-correlated and therefore less prone to over-fitting. Each tree is also a sequence of yes-no questions based on a single or combination of features. At each node (this is at each question), the three divides the dataset into 2 buckets, each of them hosting observations that are more similar among themselves and different from the ones in the other bucket. Therefore, the importance of each feature is derived by how ""pure"" each of the buckets is.
+
+- For classification, the measure of impurity is either the Gini impurity or the information gain/entropy. For regression the measure of impurity is variance. Therefore, when training a tree, it is possible to compute how much each feature decreases the impurity. The more a feature decreases the impurity, the more important the feature is. In random forests, the impurity decrease from each feature can be averaged across trees to determine the final importance of the variable.
+
+- To give a better intuition, features that are selected at the top of the trees are in general more important than features that are selected at the end nodes of the trees, as generally the top splits lead to bigger information gains.
+
+- Please see my kernel, [Random Forest Classifier + Feature Importance - Section 13. Find important features with Random Forest model](https://www.kaggle.com/prashant111/random-forest-classifier-feature-importance) to know how to find important features using the random forest model.
+
+- I will demonstrate this process using the mushroom classification dataset as follows:-",markdown,,
+112,"# Import libraries
+from sklearn import preprocessing
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn import tree
+from sklearn.ensemble import RandomForestClassifier",code,,
+113,"# Load dataset
+df = pd.read_csv('/kaggle/input/mushroom-classification/mushrooms.csv')",code,,
+114,"# Declare feature vector and target variable
+X = df.drop(['class'], axis = 1)
+y = df['class']",code,,
+115,"# Encode categorical variables
+X = pd.get_dummies(X, prefix_sep='_')
+y = LabelEncoder().fit_transform(y)",code,,
+116,"# Normalize feature vector
+X2 = StandardScaler().fit_transform(X)",code,,
+117,"# Split the dataset
+X_train, X_test, y_train, y_test = train_test_split(X2, y, test_size = 0.30, random_state = 0)",code,,
+118,"
+# instantiate the classifier with n_estimators = 100
+clf = RandomForestClassifier(n_estimators=100, random_state=0)
+",code,,
+119,"# fit the classifier to the training set
+clf.fit(X_train, y_train)",code,,
+120,"# predict on the test set
+y_pred = clf.predict(X_test)",code,,
+121,"## **Feature Importance**
+
+- Decision Trees models which are based on ensembles (eg. Extra Trees and Random Forest) can be used to rank the importance of the different features. Knowing which features our model is giving most importance can be of vital importance to understand how our model is making it’s predictions (therefore making it more explainable). At the same time, we can get rid of the features which do not bring any benefit to our model.",markdown,,
+122,"# visualize feature importance
+
+plt.figure(num=None, figsize=(10,8), dpi=80, facecolor='w', edgecolor='k')
+
+feat_importances = pd.Series(clf.feature_importances_, index= X.columns)
+
+feat_importances.nlargest(7).plot(kind='barh')",code,,
+123,"- Now we know which features are most important in the Random Forest model, we can train our model just using these features. 
+
+- I have implemented this in the kernel - [Random Forest Classifier + Feature Importance : Section 15 - Build the Random Forest model on selected features](https://www.kaggle.com/prashant111/random-forest-classifier-feature-importance). It resulted in improved accuracy.",markdown,,
+124,"# **5. How to choose the right feature selection method** <a class=""anchor"" id=""5""></a>
+
+[Table of Contents](#0.1)
+
+
+- We can see that there are lot of feature selection techniques available. 
+
+- The following graphic will serve as a guide on how to choose a feature selection method:-",markdown,,
+125,"![How to Choose a Feature Selection Method](https://3qeqpr26caki16dnhd19sv6by6v-wpengine.netdna-ssl.com/wp-content/uploads/2019/11/How-to-Choose-Feature-Selection-Methods-For-Machine-Learning.png)
+
+
+## **Image Source : Machine Learning Mastery**",markdown,,
+126,"## **Numerical Input, Numerical Output**
+
+- This is a regression predictive modeling problem with numerical input variables.
+
+- The most common techniques are to use a correlation coefficient, such as Pearson’s for a linear correlation, or rank-based methods for a nonlinear correlation.
+
+- The tests emplyed are as follows:-
+
+  - Pearson’s correlation coefficient (linear).
+  - Spearman’s rank coefficient (nonlinear)
+  
+  
+## **Numerical Input, Categorical Output**
+
+- This is a classification predictive modeling problem with numerical input variables.
+
+- This might be the most common example of a classification problem,
+
+- Again, the most common techniques are correlation based, although in this case, they must take the categorical target into account.
+
+- We can employ the following tests as follows:-
+
+  - ANOVA correlation coefficient (linear).
+  - Kendall’s rank coefficient (nonlinear).
+  
+- Kendall does assume that the categorical variable is ordinal.
+
+
+## **Categorical Input, Numerical Output**
+
+- This is a regression predictive modeling problem with categorical input variables.
+
+- This is a strange example of a regression problem (e.g. we will not encounter it often).
+
+- We can use the same “Numerical Input, Categorical Output” methods (described above), but in reverse.
+
+
+
+
+## **Categorical Input, Categorical Output**
+
+- This is a classification predictive modeling problem with categorical input variables.
+
+- The most common correlation measure for categorical data is the chi-squared test. We can also use mutual information (information gain) from the field of information theory.
+
+- The following tests can be employed in this case -
+
+  - Chi-Squared test (contingency tables).
+  - Mutual Information.
+  
+In fact, mutual information is a powerful method that may prove useful for both categorical and numerical data, e.g. it is agnostic to the data types.",markdown,,
+127,"# **6. Tips and Tricks for Feature Selection** <a class=""anchor"" id=""6""></a>
+
+[Table of Contents](#0.1)
+
+
+- In this section, we provide some additional considerations when using filter-based feature selection.
+
+
+## **Correlation Statistics**
+
+- The scikit-learn library provides an implementation of most of the useful statistical measures.
+
+- For example:
+
+   - Pearson’s Correlation Coefficient: [f_regression()](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.f_regression.html)
+   - ANOVA: [f_classif()](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.f_classif.html)
+   - Chi-Squared: [chi2()](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.chi2.html)
+   - Mutual Information: [mutual_info_classif()](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_classif.html) and [mutual_info_regression()](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.mutual_info_regression.html).
+   
+   
+- Also, the SciPy library provides an implementation of many more statistics, such as Kendall’s tau (kendalltau) and Spearman’s rank correlation (spearmanr).
+
+
+## **Selection Method**
+
+- The scikit-learn library also provides many different filtering methods once statistics have been calculated for each input variable with the target.
+
+- Two of the more popular methods include:
+
+    - Select the top k variables: [SelectKBest](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.SelectKBest.html)
+    - Select the top percentile variables: [SelectPercentile](https://scikit-learn.org/stable/modules/generated/sklearn.feature_selection.SelectPercentile.html)
+    
+
+
+## **Transform Variables**
+
+- We can consider transforming the variables in order to access different statistical methods. For example, we can transform a categorical variable to ordinal, even if it is not, and see if any interesting results come out.
+
+- We can also make a numerical variable discrete (e.g. bins); try categorical-based measures.
+
+- Some statistical measures assume properties of the variables, such as Pearson’s that assumes a Gaussian probability distribution to the observations and a linear relationship. You can transform the data to meet the expectations of the test and try the test regardless of the expectations and compare results.
+
+
+## **What Is the Best Method?**
+
+- There is no best feature selection method. Just like there is no best set of input variables or best machine learning algorithm. 
+
+- Instead, we must discover what works best for your specific problem using careful systematic experimentation.
+
+- We should try a range of different models fit on different subsets of features chosen via different statistical measures and discover what works best for your specific problem.
+
+
+## **4 best ways of Feature Selection**
+
+- The 4 practical ways of feature selection which yield best results are as follows:-
+
+    1. SelectKBest
+    2. Recursive Feature Elimination
+    3. Correlation-matrix with heatmap
+    4. Random-Forest Importance",markdown,,
+128,"# **7. References** <a class=""anchor"" id=""7""></a>
+
+[Table of Contents](#0.1)
+
+
+- The work done in this kernel is inspired from the following courses and websites:-
+
+
+  1. [Feature Selection for Machine Learning](https://www.udemy.com/course/feature-selection-for-machine-learning/) by Soledad Galli
+
+  2. [Analytics Vidhya article on Feature Selection](https://www.analyticsvidhya.com/blog/2016/12/introduction-to-feature-selection-methods-with-an-example-or-how-to-select-the-right-variables/)
+
+  3. https://en.wikipedia.org/wiki/Feature_selection
+
+  4. https://machinelearningmastery.com/feature-selection-with-real-and-categorical-data/",markdown,,
+129,[Go to Top](#0),markdown,,

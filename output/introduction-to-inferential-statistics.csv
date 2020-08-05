@@ -1,0 +1,565 @@
+ID,Source,Type,Category,Stage
+0,!pip install dabl,code,,
+1,![image.png](attachment:image.png),markdown,,
+2,"# Introduction to Inferential Statistics
+
+## Introduction to Probability
+
+* Basic Probability
+* Conditional Probability
+* Simple Probability Distribution
+* Probability Mass Function (p.m.f) & Probability Density Function (p.d.f)
+* Normal Distribution
+* Normal Distribution & Standard Deviation
+* Concept of Z-score
+
+## Introduction to Inference
+
+* Sample Mean & Population Mean
+* Statistical Inference
+* Central Limit Theorem
+* Confidence Intervals
+* Interpretation Of Confidence Interval
+* Hypothesis Testing
+* Why Null Hypothesis ?
+* Alternate Hypothesis
+* P-Value
+* t-test
+* Type I and Type II error
+* Chi-squared Goodness of fit test
+* Chi-sqaured Test of Independence",markdown,,
+3,"# for basic operations
+import numpy as np 
+import pandas as pd 
+
+# for data visualizations
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# for getting the file path
+import os
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+        
+# for avoiding warnings
+import warnings
+warnings.filterwarnings('ignore')",code,,
+4,"# reading the data
+data = pd.read_csv('/kaggle/input/house-prices-advanced-regression-techniques/train.csv')
+
+# lets check the shape of the dataset
+data.shape",code,,
+5,"# lets check the head of the dataset
+pd.set_option('max_columns', 82)
+data.head()",code,,
+6,"plt.rcParams['figure.figsize'] = (15, 6)
+plt.style.use('fivethirtyeight')
+
+import dabl
+dabl.plot(data, target_col = 'SalePrice')",code,,
+7,"## Basic Probability
+
+* Let's start with a simple example: Say, we flip a fair coin
+
+* Intuitively, there's a 50% chance of getting heads, and a 50% chance of getting tails. This is because there are only two possible outcomes, and each event is equally likely.
+
+* Therefore, we can say that the Probability of getting a Heads is 0.5. Similarly, Probability of getting a Tails is 0.5
+
+* Probability can roughly be described as **the chance of an event or sequence of events occurring**.
+
+* **Experiment** – are the uncertain situations, which could have multiple outcomes. A coin toss is an experiment.
+* **Outcome** is the result of a single trial. So, if head lands, the outcome of or coin toss experiment is “Heads”
+* **Event** is one or more outcomes from an experiment. “Tails” is one of the possible events for this experiment.",markdown,,
+8,"### Rules
+
+* The Probability that an event occurs with certainty is 1
+* The Probability that an event will not occur surely is 0
+* The Probability of the complement of an event is 1 minus the probability of that event.
+
+* The probability of at least 1 of 2 (or more) things that can not simultaneously occur (mutually exclusive) is the sum of their respective probabilities
+
+* **Mutually exclusive is a statistical term describing two or more events that cannot occur simultaneously. For example, it is impossible to roll a five and a three on a single die at the same time.**",markdown,,
+9,"For any 2 events A & B, the probability that at least one occurs is the sum of their individual probabilities minus the probability of their intersection. i.e
+
+
+$$ P(A\cup B) = P(A) + P(B) - P(A\cap B) $$
+
+Example
+
+The National Sleep Foundation reports that around 3% of the American population has sleep-breathing issues. They also report that around 10% of the American population has restless leg syndrome. Does this imply that 13% of people will have at least one of these problems?
+
+Answer: No, the events can occur simultaneously and so are not mutually exclusive. To elaborate:",markdown,,
+10,"* **Let's check out the Probability of picking a house in the Neighborhood - ""OldTown""**
+
+
+No. of houses in OldTown/Total no. of houses
+Let's go through this in Python",markdown,,
+11,"# let's check the columns in the dataset
+data.columns",code,,
+12,"# lets check the different neighborhoods
+data['Neighborhood'].value_counts()",code,,
+13,"# total number of houses in the neighborhood
+all_houses = data.shape[0]
+print(""Total Number of Houses in the Neighborhood :"", all_houses)",code,,
+14,"# total number of houses in the Old town neighborhood
+houses_in_OldTown = data[data['Neighborhood'] == 'OldTown'].shape[0]
+print(""Total Number of Houses in the Old Town Road :"", houses_in_OldTown)
+",code,,
+15,"# lets find the probability of picking a House in the Old Town
+probability = (houses_in_OldTown/all_houses)*100
+print('Probability of picking a house in OldTown: {0:.2f}'.format(probability )+'%')",code,,
+16,"## Conditional Probability
+
+* There are 10 candies in a bag: 5 green, and 5 blue.
+
+* What is the probability of getting 3 blue candies in a row?
+
+* The probability of getting the first blue candy is 5/10, or 1/2.
+
+When we pick a blue candy, though, we remove it from the bag. We're left with 9 candies in total with (5-1 =)4 Blue ones.
+So the probability of getting another blue is 4/9.
+Similarly, the probability of picking a third blue candy is 3/8
+
+Since we're calculating the probability of picking 1 Blue Candy AND 1 Blue Candy AND 1 Blue Candy
+
+* Our final probability is **1/2 * 4/9 * 3/8, or .0833**. So, there is an 8.3% chance of picking three blue candies in a row.
+Simple tricks: Whenever you have to verbally say AND (like we just did above), you will want to MULTIPLY the probabilities
+Whenever you have to verbally say OR, you will want to ADD the probabilities.
+
+
+**GIVEN that we have the probability of picking a house in ""OldTown"" neighborhood, we go a step further and AGAIN pick a house from the SAME neighborhood ?**",markdown,,
+17,"## Enter condtional probability code
+cond_prob = (houses_in_OldTown/all_houses) * ((houses_in_OldTown - 1)/(all_houses - 1)) 
+print(""The Probability of Picking a House in Old Town and again picking a house from the same neighborhood is {0:.9f}"".
+      format(cond_prob*100))",code,,
+18,"## Simple Probability Distribution
+
+* Lets Take an example, that we throw a dice of containing six faces.
+* so, there are Total no. of Combinations = 6*6 = 36
+
+Let’s see how:
+
+2 {(1,1)} => 1/36
+
+3 {(1,2),(2,1)} => 2/36
+
+4 {(2,2),(3,1),(1,3)} => 3/36
+
+5 {(1,4),(4,1),(2,3),(3,2)} => 4/36
+
+6 {(3,3),(1,5),(5,1),(2,4),(4,2)} => 5/36
+
+7 {(1,6),(6,1),(2,5),(5,2),(3,4),(4,3)} => 6/36
+
+8 {(2,6),(6,2),(3,5),(5,3),(4,4)} => 5/36
+
+9 {(3,6),(6,3),(5,4),(4,5)} => 4/36
+
+10 {(4,6),(6,4),(5,5)} => 3/36
+
+11 {(5,6),(6,5)} => 2/36
+
+12 {(6,6)} = > 1/36",markdown,,
+19,"## PDF and PMF
+
+* The probability distribution for a discrete random variable is the **probability mass function** for that variable and similarly and if our random variable takes continuous values the distribution is called a **probability density function**.
+
+* In the previous what we plotted was the Probability Mass Function of a Discrete Random Variable (X which is the sum of two fair dies)
+
+* One of the most common Probability Distribution Functions is the Normal Distribution.
+",markdown,,
+20,"## Normal Distrution
+
+* Normal distribution, also known as the Gaussian distribution, is a probability distribution that is symmetric about the mean, showing that data near the mean are more frequent in occurrence than data far from the mean. In graph form, normal distribution will appear as a bell curve.",markdown,,
+21,"### Checking for Skewness of the data
+
+* We Generally check Askewness in the Target Columns of the data.
+* Skewness is a state of distribution where the distribution is highly biased towards the right or left side of the plot.",markdown,,
+22,"plt.rcParams['figure.figsize'] = (11, 4)
+plt.style.use('fivethirtyeight')
+
+plt.xticks(rotation=30)
+sns.distplot(data['SalePrice'])
+plt.title('Distribution of Target Column')
+plt.show()",code,,
+23,"* The distribution for our target variable aka SalePrice doesn't resemble a normal distribution, it is skewed to the right
+* If we remove the outliers, it'd somewhat resemble a Normal Dstribution",markdown,,
+24,"## Z-Score
+
+* The number of standard deviations from the mean is also called the ""Standard Score"", ""sigma"" or ""z-score"".",markdown,,
+25,![image.png](attachment:image.png),markdown,,
+26,"* Let's take an example to better understand the meaning of z-score
+    * Let's Suppose the average height of a Student in a class is 1.4 meters
+    * In that same class one of the students is 1.85m tall
+    * You can see on the bell curve that 1.85m is 3 standard deviations from the mean of 1.4.
+    * so, the student with 1.85m height has a **z-score"" of 3.0**.",markdown,,
+27,## Inference,markdown,,
+28,"### Sample Mean and population Mean
+
+* Let's consider a sample of 500 houses at random from 1460 houses and plot it's mean
+* But the mean of these 500 houses can be near or pretty far away from the mean of the 1460 houses calculated earlier.",markdown,,
+29,"# lets take seed so that everytime the random values come out to be constant
+np.random.seed(6)
+
+# lets take 500 sample values from the dataset of 1460 values
+sample_ages = np.random.choice(a= data['SalePrice'], size=500)
+
+# getting the sample mean
+print (""Sample mean:"", sample_ages.mean() )          
+
+# getting the population mean
+print(""Population mean:"", data['SalePrice'].mean())",code,,
+30,"## Statistical Inference
+
+* This **subset** of the population is nothing but the Sample data
+
+* We carry out various tests on the Sample to gain insight on the larger population out there!
+
+* Therefore Statistical inference is the process of analyzing sample data to gain insight into the population from which the data was collected and to investigate differences between different data samples.
+
+The sample mean is usually not exactly the same as the population mean. This difference can be caused by many factors including poor survey design, biased sampling methods and the randomness inherent to drawing a sample from a population.
+
+",markdown,,
+31,"## Central Limit Theorem
+
+The central limit theorem (CLT) is a statistical theory that states that given a sufficiently large sample size from a population with a finite level of variance, the mean of all samples from the same population will be approximately equal to the mean of the population. Furthermore, all of the samples will follow an approximate normal distribution pattern, with all variances being approximately equal to the variance of the population divided by each sample's size.",markdown,,
+32,"# lets check Central Limit theorem for this data
+
+# provides capability to define function with partial arguments
+from functools import partial
+
+# number of samples to average over.
+n=np.array([1, 2, 3, 5, 10, 100, 200])
+
+# number of times samples of size n are taken. Try varying this number.
+N = 1000
+
+# number of bin boundaries on plots
+nobb=101
+
+# mean of exponential distribution
+exp_mean=3
+
+# parameters of beta distribution
+a,b=0.7,0.5 
+
+dist=[partial(np.random.random), 
+      partial(np.random.exponential, exp_mean),
+      partial(np.random.beta, a, b)]
+
+# lets define the title names.
+title_names=[""Flat"",
+             ""Exponential (mean=%.1f)"" % exp_mean, 
+             ""Beta (a=%.1f, b=%.1f)"" % (a,b)]
+
+# ranges of the three distributions
+drange=np.array([[0,1],[0,10],[0,1]]) 
+
+# means of the three distributions
+means=np.array([0.5,exp_mean,a/(a+b)])
+
+# variances of the three distributions
+var=np.array([1/12,exp_mean**2,a*b/((a+b+1)*(a+b)**2)]) 
+
+# generates random samples in the specified ranges for the respective distributions.
+binrange=np.array([np.linspace(p,q,nobb) for p,q in drange]) 
+ln,ld=len(n),len(dist)
+plt.figure(figsize=((ld*4)+1,(ln*2)+1))
+
+ # loop over number of n samples to average over
+for i in range(ln):
+     # loop over the different distributions
+    for j in range(ld):
+        plt.subplot(ln,ld,i*ld+1+j)
+        plt.hist(np.mean(dist[j]((N,n[i])),1),binrange[j])
+        plt.xlim(drange[j])
+        if j==0:
+            plt.ylabel('n=%i' % n[i],fontsize=15)        
+        if i==0:
+            plt.title(title_names[j], fontsize=15)
+        else:
+            clt=(1/(np.sqrt(2*np.pi*var[j]/n[i])))*np.exp(-(((binrange[j]-means[j])**2)*n[i]/(2*var[j])))
+            plt.plot(binrange[j],clt,'y',linewidth=2)     
+plt.show()",code,,
+33,"
+In the graphs above the yellow curve is the predicted Gaussian distribution from the Central Limit Thereom. Notice that the rate of convergence of the sample mean to the Gaussian depends on the original parent distribution. Also,
+
+the mean of the Gaussian distribution is the same as the original parent distribution,
+the width of the Gaussian distribution varies with sample size as $1/\sqrt{n}$.",markdown,,
+34,"## Confidence Interval
+
+**Confidence Interval (CI)** is a type of estimate computed from the statistics of the observed data. This proposes a range of plausible values for an unknown parameter (for example, the mean). The interval has an associated confidence level that the true parameter is in the proposed range.",markdown,,
+35,![image.png](attachment:image.png),markdown,,
+36,"The 95% confidence interval defines a range of values that you can be 95% certain contains the population mean. With large samples, you know that mean with much more precision than you do with a small sample, so the confidence interval is quite narrow when computed from a large sample.",markdown,,
+37,"# lets import the scipy package
+import scipy.stats as stats
+import math
+
+# lets seed the random values
+np.random.seed(10)
+
+# lets take a sample size
+sample_size = 1000
+sample = np.random.choice(a= data['SalePrice'],
+                          size = sample_size)
+sample_mean = sample.mean()
+
+# Get the z-critical value*
+z_critical = stats.norm.ppf(q = 0.95)  
+
+ # Check the z-critical value  
+print(""z-critical value: "",z_critical)                                
+
+# Get the population standard deviation
+pop_stdev = data['SalePrice'].std()  
+
+# checking the margin of error
+margin_of_error = z_critical * (pop_stdev/math.sqrt(sample_size)) 
+
+# defining our confidence interval
+confidence_interval = (sample_mean - margin_of_error,
+                       sample_mean + margin_of_error)  
+
+# lets print the results
+print(""Confidence interval:"",end="" "")
+print(confidence_interval)
+print(""True mean: {}"".format(data['SalePrice'].mean()))",code,,
+38,"* Notice that the true mean is contained in our interval.
+* A confidence interval of 95% would mean that if we take many samples and create confidence intervals for each of them, 95% of our samples' confidence intervals will contain the true population mean.
+* Now, let's create several confidence intervals and plot them to get a better sense of what it means to ""capture"" the true mean",markdown,,
+39,"np.random.seed(12)
+
+sample_size = 500
+
+intervals = []
+sample_means = []
+
+for sample in range(25):
+    sample = np.random.choice(a= data['SalePrice'], size = sample_size)
+    sample_mean = sample.mean()
+    sample_means.append(sample_mean)
+
+     # Get the z-critical value* 
+    z_critical = stats.norm.ppf(q = 0.975)         
+
+    # Get the population standard deviation
+    pop_stdev = data['SalePrice'].std()  
+
+    stats.norm.ppf(q = 0.025)
+
+    margin_of_error = z_critical * (pop_stdev/math.sqrt(sample_size))
+
+    confidence_interval = (sample_mean - margin_of_error,
+                           sample_mean + margin_of_error)  
+    
+    intervals.append(confidence_interval)
+    
+
+plt.figure(figsize=(13, 9))
+
+plt.errorbar(x=np.arange(0.1, 25, 1), 
+             y=sample_means, 
+             yerr=[(top-bot)/2 for top,bot in intervals],
+             fmt='o')
+
+plt.hlines(xmin=0, xmax=25,
+           y=data['SalePrice'].mean(), 
+           linewidth=2.0,
+           color=""red"")
+plt.title('Confidence Intervals for 25 Trials', fontsize = 20)
+plt.show()",code,,
+40,"* It is easily visible that 95% of the times the blue lines(the sample meean) overlaps with the red line(the true mean), also 5% of the times it is expected to not overlap with the red line(the true mean).",markdown,,
+41,"## Hypothesis Testing
+
+* $Statistical Hypothesis$, sometimes called confirmatory data analysis, is a hypothesis that is testable on the basis of observing a process that is modeled via a set of random variables. A statistical hypothesis test is a method of statistical inference.
+
+### Null Hypothesis
+
+* In Inferential Statistics, **The Null Hypothesis is a general statement or default position that there is no relationship between two measured phenomena or no association among groups.**
+
+* Statistical hypothesis tests are based on a statement called the null hypothesis that assumes nothing interesting is going on between whatever variables you are testing.
+
+* Therefore, in our case the Null Hypothesis would be:
+**The Mean of House Prices in OldTown is not different from the houses of other neighborhoods**
+
+### Alternate Hypothesis
+
+* The alternate hypothesis is just an alternative to the null. For example, if your null is **I'm going to win up to 1000** then your alternate is **I'm going to win more than 1000.** Basically, you're looking at whether there's enough change (with the alternate hypothesis) to be able to reject the null hypothesis
+
+###  The Null Hypothesis is assumed to be true and Statistical evidence is required to reject it in favor of an Alternative Hypothesis.
+
+
+1. Once you have the null and alternative hypothesis in hand, you choose a significance level (often denoted by the Greek letter α). The significance level is a probability threshold that determines when you reject the null hypothesis.
+
+2. After carrying out a test, if the probability of getting a result as extreme as the one you observe due to chance is lower than the significance level, you reject the null hypothesis in favor of the alternative.
+
+3. This probability of seeing a result as extreme or more extreme than the one observed is known as the p-value.",markdown,,
+42,"### P Value
+
+* In statistical hypothesis testing, **the p-value or probability value** is the probability of obtaining test results at least as extreme as the results actually observed during the test, assuming that the null hypothesis is correct. 
+
+* So now say that we have put a significance (α) = 0.05
+* This means that if we see a p-value of lesser than 0.05, we reject our Null and accept the Alternative to be true
+",markdown,,
+43,"
+**Are house prices in OldTown really different from the House Prices of Other Neighborhoods?**",markdown,,
+44,"# lets import z test from statsmodels
+from statsmodels.stats.weightstats import ztest
+
+z_statistic, p_value = ztest(x1 = data[data['Neighborhood'] == 'OldTown']['SalePrice'],
+                             value = data['SalePrice'].mean())
+
+# lets print the Results
+print('Z-statistic is :{}'.format(z_statistic))
+print('P-value is :{:.50f}'.format(p_value))",code,,
+45,"* If the P value if less than 0.05, then we can reject our null hypothesis against the alternate hypothesis.
+
+* **The Probability of getting the given distribution of houseprices in OldTown under the assumption that its mean, is the same as the mean of all house prices.**",markdown,,
+46,"
+### Another way to test: Gosset's (Student's) t-test",markdown,,
+47,"* The T-test is a statistical test used to determine whether a numeric data sample differs significantly from the population or whether two samples differ from one another.
+* A z-test assumes a sample size >30 to work, but what if our sample is less than 30?
+* A t-test solves this problem and gives us a way to do a hypothesis test on a smaller sample.
+* Now, let's also see if house prices in Stone Brook neighborhood are different from the houses in the rest of the neighborhoods.",markdown,,
+48,"### Now, let's also see if house prices in Stone Brook neighborhood are different from the houses in the rest of the neighborhoods.",markdown,,
+49,"print('No of houses in Stone Brook: {}'\
+      .format(data['Neighborhood'].value_counts()['StoneBr']))
+",code,,
+50,"stats.ttest_1samp(a= data[data['Neighborhood'] == 'StoneBr']['SalePrice'],               # Sample data
+                 popmean= data['SalePrice'].mean())  # Pop mean",code,,
+51,* The p-value in this case again is low and we can reject our null hypothesis,markdown,,
+52,"## Type 1 and Type 2 Error
+
+* In statistical hypothesis testing, a type I error is the rejection of a true null hypothesis, while a type II error is the non-rejection of a false null hypothesis
+
+### Type 1  and Type 2 Error Example
+
+For example, let's look at the trail of an accused criminal. The null hypothesis is that the person is innocent, while the alternative is guilty. 
+* A Type 1 error in this case would mean that the person is not found innocent and is sent to jail, despite actually being innocent.
+* A Type 2 Erroe Example In this case would be, the person is found innocent and not sent to jail despite of him being guilty in real.
+",markdown,,
+53,"### Chi Square Test
+
+The term ""chi-squared test,"" also written as χ² test, refers to certain types of statistical hypothesis tests that are valid to perform when the test statistic is chi-squared distributed under the null hypothesis. Often, however, the term is used to refer to Pearson's chi-squared test and variants thereof.
+
+***A chi-squared goodness of fit tests whether the distribution of sample categorical data matches an expected distribution.***
+
+For example, 
+* *you could use a chi-squared goodness-of-fit test to check whether the race demographics of members at your church or school match that of the entire population of your country*.
+* *you could check whether the computer browser preferences of your friends match those of Internet uses as a whole.*
+
+* *When working with categorical data the values the observations themselves aren't of much use for statistical testing because categories like ""male"", ""female,"" and ""other"" have no mathematical meaning.*",markdown,,
+54,#### Let's generate some fake demographic data for U.S. and Minnesota and walk through the chi-square goodness of fit test to check whether they are different:,markdown,,
+55,## Chi-Squared Goodness of fit Test,markdown,,
+56,"national = pd.DataFrame([""white""]*100000 + [""hispanic""]*60000 +\
+                        [""black""]*50000 + [""asian""]*15000 + [""other""]*35000)          
+
+minnesota = pd.DataFrame([""white""]*600 + [""hispanic""]*300 + \
+                         [""black""]*250 +[""asian""]*75 + [""other""]*150)
+
+national_table = pd.crosstab(index=national[0], columns=""count"")
+minnesota_table = pd.crosstab(index=minnesota[0], columns=""count"")
+
+print( ""National"")
+print(national_table)
+print("" "")
+print( ""Minnesota"")
+print(minnesota_table)",code,,
+57,![image.png](attachment:image.png),markdown,,
+58,"* **Good Fit**: If the significance value that is p-value associated with chi-square statistics is 0.002, there is very strong evidence of rejecting the null hypothesis of no fit. It means good fit.",markdown,,
+59,"observed = minnesota_table
+
+national_ratios = national_table/len(national)  # Get population ratios
+
+expected = national_ratios * len(minnesota)   # Get expected counts
+
+chi_squared_stat = (((observed-expected)**2)/expected).sum()
+
+print(chi_squared_stat)",code,,
+60,"## Chi-Sqaured Test of Independence
+
+Independence is a key concept in probability that describes a situation where knowing the value of one variable tells you nothing about the value of another.
+
+For instance, the month you were born probably doesn't tell you anything which web browser you use, so we'd expect birth month and browser preference to be independent.
+
+On the other hand, your month of birth might be related to whether you excelled at sports in school, so month of birth and sports performance might not be independent.
+
+The chi-squared test of independence tests whether two categorical variables are independent.",markdown,,
+61,### Effect of LandContour on SalePrice,markdown,,
+62,"# Let's test if knowing LandContour which is the overall flatness of the property tells us anything about the price
+
+# For this let's divide the SalePrice in three buckets - High, Medium, Low
+
+import scipy.stats as sp
+def compute_freq_chi2(x,y):
+    freqtab = pd.crosstab(x,y)
+    print(""Frequency table"")
+    print(""============================"")
+    print(freqtab)
+    print(""============================"")
+    chi2, pval, dof, expected = sp.chi2_contingency(freqtab)
+    print(""ChiSquare test statistic: "",chi2)
+    print(""p-value: "",pval)
+    return
+
+
+price = pd.qcut(data['SalePrice'], 3, labels = ['High', 'Medium', 'Low'])
+compute_freq_chi2(data.LandContour, price)",code,,
+63,"* The low p-value tells us that the two variables aren't independent and knowing the LandContour of a house does tells us something about its SalePrice.
+
+**The frequency distribution reflects this**
+* Houses that are Near Flat/Level(Lvl) have an equal distribution of SalePrice.
+* On the other hand houses that are at a Hillside i.e., Significant slope from side to side (HLS) have almost thrice as much houses with low price than high prices.
+* It is now evident that Chi Sqaured test is a very important tool to understand the effect of variables on each other.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+",markdown,,
+64,"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+",code,,

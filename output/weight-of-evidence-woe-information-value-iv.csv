@@ -1,0 +1,387 @@
+ID,Source,Type,Category,Stage
+0,"# Weight of Evidence(WOE) and Information Value(IV)
+
+Weight of Evidence (WoE) describes the relationship between a predictor and a binary dependent variable. Information Value (IV) is the measurement of that relationship’s power. Based on its role, IV can be used as a base for attributes selection.
+![](https://image.slidesharecdn.com/gcd-eda-190715044818/95/exploratory-data-analysis-on-german-credit-data-7-638.jpg?cb=1563166769)
+
+Logistic regression model is one of the most commonly used statistical technique for solving binary classification problem. It is acceptable in almost all the domains. These two concepts - **weight of evidence (WOE)** and **information value (IV) **evolved from the same logistic regression technique. These two terms have been in existence in credit scoring world for more than 4-5 decades. They have been used as a benchmark to screen variables in the credit risk modeling projects such as **probability of default**. They help to explore data and screen variables. It is also used in marketing analytics project such as customer attrition model, campaign response model etc.
+
+  <img src=""https://i.imgur.com/5cKHNKJ.jpg"">
+
+### Weight of Evidence (WOE)
+
+The weight of evidence tells the predictive power of an independent variable in relation to the dependent variable.
+
+Since it evolved from credit scoring world, it is generally described as a measure of the separation of good and bad customers. ""Bad Customers"" refers to the customers who defaulted on a loan. and ""Good Customers"" refers to the customers who paid back loan.
+
+<img src=""https://i.imgur.com/hrTnEXv.jpg"">
+
+Many people do not understand the terms goods/bads as they are from different background than the credit risk. It's good to understand the concept of WOE in terms of events and non-events. It is calculated by taking the natural logarithm (log to base e) of division of % of non-events and % of events.
+
+<img src=""https://i.imgur.com/dfosGgc.jpg"">
+
+WOE is typically used as part of the credit scorecard development .The development process consists of four main parts: variable transformations, model training using logistic regression, model validation, and scaling.
+
+<img src=""https://i.imgur.com/lbC7lfU.jpg"">
+
+### Variable Transformations
+
+If you torture the data long enough, it will confess to anything. A standard scorecard model, based on logistic regression, is an additive model; hence, special variable transformations are required. The commonly adopted transformations – fine classing, coarse classing, and either dummy coding or weight of evidence (WOE) transformation – form a sequential process providing a model outcome that is both easy to implement and explain to the business. Additionally, these transformations assist in converting non-linear relationships between independent variables and the dependent variable into a linear relationship – the customer behaviour often requested by the business.
+
+#### Fine classing
+
+Applied to all continuous variables and those discrete variables with high cardinality. This is the process of initial binning into typically between 20 and 50 fine granular bins.
+
+**To summarize create 10/20 bins/groups for a continuous independent variable and then calculates WOE and IV of the variable
+
+#### Coarse classing
+
+Where a binning process is applied to the fine granular bins to merge those with similar risk and create fewer bins, usually up to ten. The purpose is to achieve simplicity by creating fewer bins, each with distinctively different risk factors while minimising the information loss. However, to create a robust model that is resilient to overfitting, each bin should contain a sufficient number of observations from the total account (5% is the minimum recommended by most practitioners). These opposing goals can be achieved through an optimisation in the form of optimal binning that maximises a variable’s predictive power during the coarse classing process. Optimal binning utilises the same statistical measures used during variable selection, such as information value, Gini and chi-square statistics. The most popular measure is, again, information value, although combination of two or more measures is often beneficial. The missing values, if they contain predictive information, should be a separate class or merged to bin with similar risk factors.
+
+**To summarize combine adjacent categories with similar WOE scores
+
+#### Dummy coding
+
+The process of creating binary (dummy) variables for all coarse classes except the reference class. This approach may present issues as the extra variables requires more memory and processing resources, and occasionally overfitting may arise because of the reduced degrees of freedom.
+
+#### Weight of evidence (WOE) transformation
+
+The alternative, more favoured, approach to dummy coding that substitutes each coarse class with a risk value, and in turn collapses the risk values into a single numeric variable. The numeric variable describes the relationship between an independent variable and a dependent variable. The WOE framework is well suited for logistic regression modelling as both are based on log-odds calculation. In addition, WOE transformation standardises all independent variables, hence, the parameters in a subsequent logistic regression can be directly compared. 
+
+**Weight of Evidence (WOE)** helps to transform a continuous independent variable into a set of groups or bins based on similarity of dependent variable distribution i.e. number of events and non-events.
+
+**For continuous independent variables** : First, create bins (categories / groups) for a continuous independent variable and then combine categories with similar WOE values and replace categories with WOE values. Use WOE values rather than input values in your model.
+
+**For categorical independent variables** : Combine categories with similar WOE and then create new categories of an independent variable with continuous WOE values. In other words, use WOE values rather than raw categories in your model. The transformed variable will be a continuous variable with WOE values. It is same as any continuous variable.
+
+#### Why combine categories with similar WOE?
+
+It is because the categories with similar WOE have almost same proportion of events and non-events. In other words, the behavior of both the categories is same.
+
+#### Rules related to WOE
+- Each category (bin) should have at least 5% of the observations.
+- Each category (bin) should be non-zero for both non-events and events.
+- The WOE should be distinct for each category. Similar groups should be aggregated. 
+- The WOE should be monotonic, i.e. either growing or decreasing with the groupings.
+- Missing values are binned separately.
+
+#### Number of Bins (Groups)
+
+In general, 10 or 20 bins are taken. Ideally, each bin should contain at least 5% cases. The number of bins determines the amount of smoothing - the fewer bins, the more smoothing. If someone asks you ' ""why not to form 1000 bins?"" The answer is the fewer bins capture important patterns in the data, while leaving out noise. Bins with less than 5% cases might not be a true picture of the data distribution and might lead to model instability.
+
+#### Handle Zero Event/ Non-Event
+
+If a particular bin contains no event or non-event, you can use the formula below to ignore missing WOE. We are adding 0.5 to the number of events and non-events in a group.
+
+AdjustedWOE = ln (((Number of non-events in a group + 0.5) / Number of non-events)) / ((Number of events in a group + 0.5) / Number of events))
+
+
+#### How to check correct binning with WOE
+
+1. The WOE should be monotonic i.e. either growing or decreasing with the bins. You can plot WOE values and check linearity on the graph.
+
+2. Perform the WOE transformation after binning. Next, we run logistic regression with 1 independent variable having WOE values. If the slope is not 1 or the intercept is not ln(% of non-events / % of events) then the binning algorithm is not good.
+
+Both dummy coding and WOE transformation give the similar results. The choice which one to use mainly depends on personal preferences.
+
+In general optimal binning, dummy coding and weight of evidence transformation are, when carried out manually, time-consuming processes. 
+
+**WOE Advantage**:
+
+The advantages of WOE transformation are
+
+**1. Handles missing values**
+
+**2. Handles outliers**
+
+**3. The transformation is based on logarithmic value of distributions. This is aligned with the logistic regression output function**
+
+**4. No need for dummy variables**
+
+**5. By using proper binning technique, it can establish monotonic relationship (either increase or decrease) between the independent and dependent variable**
+
+**WOE Disadvantage**:
+
+The  main disadvantage of WOE transformation is 
+
+**-  in only considering the relative risk of each bin, without considering the proportion of accounts in each bin. The information value can be utilised instead to assess the relative contribution of each bin.**
+
+### Information Value (IV)
+
+Information value is one of the most useful technique to select important variables in a predictive model. It helps to rank variables on the basis of their importance. The IV is calculated using the following formula :
+  <img src=""https://i.imgur.com/r6ACeFN.jpg"">
+
+  ** IV statistic in credit scoring can be interpreted as follows. **
+
+<img src=""https://i.imgur.com/cZx3taD.jpg"">
+ 
+If the IV statistic is:
+
+- Less than 0.02, then the predictor is not useful for modeling (separating the Goods from the Bads)
+- 0.02 to 0.1, then the predictor has only a weak relationship to the Goods/Bads odds ratio
+- 0.1 to 0.3, then the predictor has a medium strength relationship to the Goods/Bads odds ratio
+- 0.3 to 0.5, then the predictor has a strong relationship to the Goods/Bads odds ratio.
+- 0.5, suspicious relationship (Check once)
+
+#### Important Points
+
+- Information value increases as bins / groups increases for an independent variable. We have to be careful when there are more than **20 bins** as some bins may have a very few number of events and non-events.
+
+- Information value should not be used as a feature selection method when you are building a classification model other than binary logistic regression (for eg. random forest or SVM) as it's designed for binary logistic regression model only.",markdown,,
+1,"# Import packages
+import pandas as pd
+import numpy as np
+import pandas.core.algorithms as algos
+from pandas import Series
+import scipy.stats.stats as stats
+import re
+import traceback
+import string
+import os
+import woe
+from woe.eval import plot_ks
+print(os.listdir(""../input""))
+import matplotlib.pyplot as plt
+%matplotlib inline
+from pylab import rcParams
+rcParams['figure.figsize'] = 14, 8
+import warnings
+warnings.filterwarnings('ignore')
+import plotly.plotly as py
+import plotly.graph_objs as go
+import plotly
+import plotly.figure_factory as ff
+from plotly.offline import init_notebook_mode, iplot
+init_notebook_mode(connected=True)
+plotly.offline.init_notebook_mode(connected=True)
+max_bin = 20
+force_bin = 3",code,,
+2,"df = pd.read_csv('../input/uci-credit-carefrom-python-woe-pkg/UCI_Credit_Card.csv',sep=',')",code,,
+3,df.head(),code,,
+4,df.info(),code,,
+5,Define a binning function for continuous independent variables,markdown,,
+6,"def mono_bin(Y, X, n = max_bin):
+    df1 = pd.DataFrame({""X"": X, ""Y"": Y})
+    justmiss = df1[['X','Y']][df1.X.isnull()]
+    notmiss = df1[['X','Y']][df1.X.notnull()]
+    r = 0
+    while np.abs(r) < 1:
+        try:
+            d1 = pd.DataFrame({""X"": notmiss.X, ""Y"": notmiss.Y, ""Bucket"": pd.qcut(notmiss.X, n)})
+            d2 = d1.groupby('Bucket', as_index=True)
+            r, p = stats.spearmanr(d2.mean().X, d2.mean().Y)
+            n = n - 1 
+        except Exception as e:
+            n = n - 1
+
+    if len(d2) == 1:
+        n = force_bin         
+        bins = algos.quantile(notmiss.X, np.linspace(0, 1, n))
+        if len(np.unique(bins)) == 2:
+            bins = np.insert(bins, 0, 1)
+            bins[1] = bins[1]-(bins[1]/2)
+        d1 = pd.DataFrame({""X"": notmiss.X, ""Y"": notmiss.Y, ""Bucket"": pd.cut(notmiss.X, np.unique(bins),include_lowest=True)}) 
+        d2 = d1.groupby('Bucket', as_index=True)
+    
+    d3 = pd.DataFrame({},index=[])
+    d3[""MIN_VALUE""] = d2.min().X
+    d3[""MAX_VALUE""] = d2.max().X
+    d3[""COUNT""] = d2.count().Y
+    d3[""EVENT""] = d2.sum().Y
+    d3[""NONEVENT""] = d2.count().Y - d2.sum().Y
+    d3=d3.reset_index(drop=True)
+    
+    if len(justmiss.index) > 0:
+        d4 = pd.DataFrame({'MIN_VALUE':np.nan},index=[0])
+        d4[""MAX_VALUE""] = np.nan
+        d4[""COUNT""] = justmiss.count().Y
+        d4[""EVENT""] = justmiss.sum().Y
+        d4[""NONEVENT""] = justmiss.count().Y - justmiss.sum().Y
+        d3 = d3.append(d4,ignore_index=True)
+    
+    d3[""EVENT_RATE""] = d3.EVENT/d3.COUNT
+    d3[""NON_EVENT_RATE""] = d3.NONEVENT/d3.COUNT
+    d3[""DIST_EVENT""] = d3.EVENT/d3.sum().EVENT
+    d3[""DIST_NON_EVENT""] = d3.NONEVENT/d3.sum().NONEVENT
+    d3[""WOE""] = np.log(d3.DIST_EVENT/d3.DIST_NON_EVENT)
+    d3[""IV""] = (d3.DIST_EVENT-d3.DIST_NON_EVENT)*np.log(d3.DIST_EVENT/d3.DIST_NON_EVENT)
+    d3[""VAR_NAME""] = ""VAR""
+    d3 = d3[['VAR_NAME','MIN_VALUE', 'MAX_VALUE', 'COUNT', 'EVENT', 'EVENT_RATE', 'NONEVENT', 'NON_EVENT_RATE', 'DIST_EVENT','DIST_NON_EVENT','WOE', 'IV']]       
+    d3 = d3.replace([np.inf, -np.inf], 0)
+    d3.IV = d3.IV.sum()
+    
+    return(d3)
+",code,,
+7,Define a binning function for categorical independent variables,markdown,,
+8,"def char_bin(Y, X):
+        
+    df1 = pd.DataFrame({""X"": X, ""Y"": Y})
+    justmiss = df1[['X','Y']][df1.X.isnull()]
+    notmiss = df1[['X','Y']][df1.X.notnull()]    
+    df2 = notmiss.groupby('X',as_index=True)
+    
+    d3 = pd.DataFrame({},index=[])
+    d3[""COUNT""] = df2.count().Y
+    d3[""MIN_VALUE""] = df2.sum().Y.index
+    d3[""MAX_VALUE""] = d3[""MIN_VALUE""]
+    d3[""EVENT""] = df2.sum().Y
+    d3[""NONEVENT""] = df2.count().Y - df2.sum().Y
+    
+    if len(justmiss.index) > 0:
+        d4 = pd.DataFrame({'MIN_VALUE':np.nan},index=[0])
+        d4[""MAX_VALUE""] = np.nan
+        d4[""COUNT""] = justmiss.count().Y
+        d4[""EVENT""] = justmiss.sum().Y
+        d4[""NONEVENT""] = justmiss.count().Y - justmiss.sum().Y
+        d3 = d3.append(d4,ignore_index=True)
+    
+    d3[""EVENT_RATE""] = d3.EVENT/d3.COUNT
+    d3[""NON_EVENT_RATE""] = d3.NONEVENT/d3.COUNT
+    d3[""DIST_EVENT""] = d3.EVENT/d3.sum().EVENT
+    d3[""DIST_NON_EVENT""] = d3.NONEVENT/d3.sum().NONEVENT
+    d3[""WOE""] = np.log(d3.DIST_EVENT/d3.DIST_NON_EVENT)
+    d3[""IV""] = (d3.DIST_EVENT-d3.DIST_NON_EVENT)*np.log(d3.DIST_EVENT/d3.DIST_NON_EVENT)
+    d3[""VAR_NAME""] = ""VAR""
+    d3 = d3[['VAR_NAME','MIN_VALUE', 'MAX_VALUE', 'COUNT', 'EVENT', 'EVENT_RATE', 'NONEVENT', 'NON_EVENT_RATE', 'DIST_EVENT','DIST_NON_EVENT','WOE', 'IV']]      
+    d3 = d3.replace([np.inf, -np.inf], 0)
+    d3.IV = d3.IV.sum()
+    d3 = d3.reset_index(drop=True)
+    
+    return(d3)",code,,
+9,"def data_vars(df1, target):
+    
+    stack = traceback.extract_stack()
+    filename, lineno, function_name, code = stack[-2]
+    vars_name = re.compile(r'\((.*?)\).*$').search(code).groups()[0]
+    final = (re.findall(r""[\w']+"", vars_name))[-1]
+    
+    x = df1.dtypes.index
+    count = -1
+    
+    for i in x:
+        if i.upper() not in (final.upper()):
+            if np.issubdtype(df1[i], np.number) and len(Series.unique(df1[i])) > 2:
+                conv = mono_bin(target, df1[i])
+                conv[""VAR_NAME""] = i
+                count = count + 1
+            else:
+                conv = char_bin(target, df1[i])
+                conv[""VAR_NAME""] = i            
+                count = count + 1
+                
+            if count == 0:
+                iv_df = conv
+            else:
+                iv_df = iv_df.append(conv,ignore_index=True)
+    
+    iv = pd.DataFrame({'IV':iv_df.groupby('VAR_NAME').IV.max()})
+    iv = iv.reset_index()
+    return(iv_df,iv)",code,,
+10,"final_iv, IV = data_vars(df,df.target)",code,,
+11,Information Value,markdown,,
+12,final_iv,code,,
+13,### Plotting the Weight of Evidence values ,markdown,,
+14,"
+
+data = [go.Bar(
+            x=final_iv['VAR_NAME'],
+            y=final_iv['WOE'],
+            text=final_iv['VAR_NAME'],
+            marker=dict(
+            color='rgb(158,20,25)',
+            line=dict(
+            color='rgb(8,48,107)',
+            width=1.5,
+        )
+    ),
+    opacity=0.6
+    )]
+
+
+layout = go.Layout(
+    title='Weight of Evidence(WOE)',
+        xaxis=dict(
+        title='Features',
+            tickangle=-45,
+        tickfont=dict(
+            size=10,
+            color='rgb(107, 107, 107)'
+        )
+    ),
+    yaxis=dict(
+        title='Weight of Evidence(WOE)',
+        titlefont=dict(
+            size=14,
+            color='rgb(107, 107, 107)'
+        ),
+        tickfont=dict(
+            size=14,
+            color='rgb(107, 107, 107)'
+        )
+    ),
+)
+
+plotly.offline.iplot({
+    ""data"": data,'layout':layout
+})",code,,
+15,### Plotting the Information values ,markdown,,
+16,"data = [go.Bar(
+            x=IV['VAR_NAME'],
+            y=IV['IV'],
+            text=IV['VAR_NAME'],
+            marker=dict(
+            color='rgb(58,256,225)',
+            line=dict(
+            color='rgb(8,48,107)',
+            width=1.5,
+        )
+    ),
+    opacity=0.6
+    )]
+
+
+layout = go.Layout(
+    title='Information Values',
+        xaxis=dict(
+        tickangle=-45,
+        title='Features',
+        tickfont=dict(
+            size=10,
+            color='rgb(7, 7, 7)'
+        )
+    ),
+    yaxis=dict(
+        title='Information Value(IV)',
+        titlefont=dict(
+            size=14,
+            color='rgb(107, 107, 107)'
+        ),
+        tickfont=dict(
+            size=14,
+            color='rgb(107, 107, 107)'
+        )
+    ),
+)
+
+plotly.offline.iplot({
+    ""data"": data,'layout':layout
+})",code,,
+17,"IV.sort_values('IV',ascending=False)",code,,
+18,"# Conclusion
+    From the above Information Value (IV) the following features are found to be good predictors have a strong relationship to the Goods/Bads odds ratio.
+    
+    VAR_NAME	IV
+	PAY_3	0.409001
+	PAY_4	0.355175
+	PAY_5	0.329335
+	PAY_6	0.281748
+    LIMIT_BAL	0.175361
+    PAY_AMT1	0.142889
+    PAY_AMT2	0.128998
+    PAY_AMT3	0.113012
+    
+    The below features are found to be suspicious in nature and too good to be true .
+    VAR_NAME IV
+    PAY_0	0.684208
+	PAY_2	0.540881",markdown,,
+19,# I hope by now you had a fair understanding of what is WOE and IV. Please do leave your comments /suggestions and if you like this kernel greatly appreciate with an UPVOTE .,markdown,,

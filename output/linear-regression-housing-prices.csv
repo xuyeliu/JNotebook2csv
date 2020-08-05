@@ -1,0 +1,79 @@
+ID,Source,Type,Category,Stage
+0,"# This Python 3 environment comes with many helpful analytics libraries installed
+# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python
+# For example, here's several helpful packages to load
+
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+
+# Input data files are available in the read-only ""../input/"" directory
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+import os
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+
+# You can write up to 5GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using ""Save & Run All"" 
+# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session",code,,
+1,"# Agenda
+1. What is linear regression?
+    1. Assumptions.
+2. How can we use it on the housing dataset?
+3. Prepare the data.
+    1. EDA (exploratory data analysis).
+    2. Cleaning.
+    3. Train-dev-test-split.
+    4. Feature scaling? (not needed for regression)
+4. Train a simple model.
+5. Evaluate.
+6. Improve the model
+    1. Overfitting.
+    2. Feature selection.
+    3. Regularization.
+    4. Polynomial regression.
+
+",markdown,,
+2,"# References
+https://www.visiondummy.com/2014/04/curse-dimensionality-affect-classification/#The_curse_of_dimensionality_and_overfitting",markdown,,
+3,"# Important terms
+- Model: a machine learning object that can predict on new and unseen data.
+- Training data: the data the model learns from.
+- Development data: the dataset used to evaluate and improve the model
+- Testing data: the dataset used to get a final evaluation of the model's performance.
+- Data cleaning: converting variables to their correct data types to make them suitable for machine learning.
+- EDA (exploratory data analysis): data visualization to gain intuition about variables and their relationships with each other. ",markdown,,
+4,"# What is linear regression?
+
+Linear regression is a type of machine learning model for predicting continuous variables from training data. It is explainable - meaning it can provide relations between the input and output variables.
+
+## Assumptions
+- Normal error distribution.
+- Homoskedastic.
+    - Constant variance of error.
+- Assume variables are independent of each other.
+- Linearity.",markdown,,
+5,# Overfitting and the curse of dimensionality,markdown,,
+6,# Train-dev-test,markdown,,
+7,"with open('/kaggle/input/house-prices-advanced-regression-techniques/data_description.txt', 'r') as f:
+    descriptions = f.read()    ",code,,
+8,"dict_desc = {}
+for i, j in enumerate(descriptions.split('\n')):
+    if j.isspace() or (len(j) == 0):
+        continue
+    if not j.startswith(' '):
+        key_name, key_desc = j.strip().split(': ')        
+        dict_desc[key_name] = [key_desc]
+    else:
+        dict_desc[key_name].append(j)
+        dict_desc[key_name] = ['\n'.join(dict_desc[key_name])]        ",code,,
+9,"dict_desc = {k:'\n'.join(v) for k, v in dict_desc.items()}",code,,
+10,"print(dict_desc.keys(), '\n')
+print(dict_desc['HouseStyle'])",code,,
+11,df = pd.read_csv('/kaggle/input/house-prices-advanced-regression-techniques/train.csv'),code,,
+12,"X = df.drop('SalePrice', axis=1)
+y = df['SalePrice']",code,,
+13,"df_train, df_dev, y_train, y_dev = train_test_split(X, y)",code,,
+14,df_train,code,,

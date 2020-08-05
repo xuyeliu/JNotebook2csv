@@ -1,0 +1,626 @@
+---
+title: 'Visual XGBoost Tuning with caret'
+author: 'pelkoja'
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    number_sections: true
+    df_print: paged
+    toc: true
+    fig_width: 8
+    fig_height: 6
+    theme: paper
+    highlight: textmate
+---
+
+# Forewords
+
+This is my learning process for the XGBoost internals in R using the `caret` package,
+and will focus be on the visual examination while building a simple, stepwise
+logical process for tuning the model. Besides the data related requirements that are needed
+for the XGBoost to work, I won't be touching the features in this kernel. 
+ 
+Things to consider:
+
+ - __Input data__: XGBoost works only with numeric vectors. Most R functions do the conversion automatically but `xgboost()` does not.
+ - __Normalization__: With tree booster, there is no need to normalize the data. Instead, if we would use linear booster with `booster = gblinear`-argument then normalization would be needed.
+ - __Missing values__: Missing values are taken care of as a side effect when doing one-hot-encoding with `vtreat`. Also, XGBoost can handle missing values, so no need to replace missing values e.g. with a constant of `-1`. 
+
+# Steps Before Modeling
+
+## Loading Packages and Reading Data
+
+```{r libraries and data load, message=FALSE, warning=FALSE}
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(glue)
+library(ModelMetrics)
+library(OpenMPController) # for Kaggle backend
+library(readr)
+library(vtreat)
+library(xgboost)
+
+set.seed(57)
+omp_set_num_threads(4) # caret parallel processing threads
+
+tr <- read_csv("../input/train.csv", col_types = cols(SalePrice = "d"))
+te <- read_csv("../input/test.csv")
+```
+
+## Preprocessing
+
+### Treatment Plan
+
+As noted, XGBoost will only work with numeric vectors, i.e. we have to
+convert categorical variables into a set of indicator variables.
+There are options for this, but here the `vtreat` package is used.
+As a side effect, vtreat also deals up with missing values on both
+categorical and numerical data.
+
+The idea is to design a _treatment plan_ which records the steps to
+one-hot-encode the training data, then use that same plan also to test data
+and to the possible future data, as it would have the same categorical
+variables and would need same preprocessing as the data at hand.
+
+From the derived variable types, `cat_P` : a “prevalence fact” tells if the
+original level was rare or common, which, according to the [vtreat vignette](https://cran.r-project.org/web/packages/vtreat/vignettes/vtreatVariableTypes.html)
+is perhaps more useful in metanalysis on the variable than to be used in a
+model, so it's dropped out using the `codeRestriction` argument:
+
+```{r treatment plan}
+treat_plan <- vtreat::designTreatmentsZ(
+  dframe = tr, # training data
+  varlist = colnames(tr) %>% .[. != "Id"], # input variables = all training data columns, except id
+  codeRestriction = c("clean", "isBAD", "lev"), # derived variables types (drop cat_P)
+  verbose = FALSE) # suppress messages
+```
+
+We can examine the derived variables is from the `scoreFrame` component
+of the created treatment plan:
+
+```{r score frame}
+score_frame <- treat_plan$scoreFrame %>% 
+  select(varName, origName, code)
+
+head(score_frame)
+unique(score_frame$code)
+```
+
+__clean__ stands for cleaned numerical variable, __isBAD__ indicates that a
+value replacement has occurred (which indicates a missing value in this case), 
+and __lev__ is a binary indicator whether a particular value of that categorical
+variable was present.
+
+Next, preparing test and training data with `vtreat::prepare`. Also, because
+Kaggle is measuring the RMSE by taking a logarithm of the y and
+the y-hat, we're transforming the target variable by taking `log()`:
+
+```{r treating test and training data}
+# list of variables without the target variable
+te$SalePrice <- as.numeric(-1)
+
+tr_treated <- vtreat::prepare(treat_plan, tr)
+te_treated <- vtreat::prepare(treat_plan, te)
+
+tr_treated$SalePrice_clean <- log(tr_treated$SalePrice_clean)
+
+dim(tr_treated)
+```
+
+The treated training data now consists of `r dim(tr_treated)[2]` features,
+instead of `r dim(tr)[2]` in the original training data.
+
+### Hold-out Set
+
+In addition, we'll be taking out a hold-out set. This is because looking at
+the cross-validated RMSE can give over-optimistic view on the model
+performance, and we can now test the model performance with unseen data 
+without having to submit anything to Kaggle. In order not to sacrifice too
+much training data, we'll be taking an 80/20 split with `dplyr`:
+
+```{r hold-out set}
+tr_holdout <- dplyr::sample_frac(tr_treated, 0.2)
+hid <- as.numeric(rownames(tr_holdout))
+tr_treated <- tr_treated[-hid, ]
+```
+
+Next, we'll ensure that the y-variables follow the same distribution:
+
+```{r normal distribution check, message=FALSE, fig.height=4}
+ggplot2::qplot(tr_holdout$SalePrice_clean, main="Hold-out Set") + geom_histogram(colour="black", fill="grey") + theme_bw() 
+ggplot2::qplot(tr_treated$SalePrice_clean, main="Training Set") + geom_histogram(colour="black", fill="grey") + theme_bw() 
+```
+
+To keep things simple with modeling, we'll turn the traninig data into simple
+input variables for `caret::train`, dropping the response variable and
+converting the data frame to a matrix:
+
+```{r }
+input_x <- as.matrix(select(tr_treated, -SalePrice_clean))
+input_y <- tr_treated$SalePrice_clean
+```
+
+
+# Tuning `xgbTree` with `caret`
+
+## List of the Tunable Hyperparameters and the Process
+
+In `caret_6.0-80`, the tuning parameter grid should have the following columns:
+
+ - `nrounds`: Number of trees, default: 100
+ - `max_depth`: Maximum tree depth, default: 6
+ - `eta`: [Learning rate](https://medium.com/data-design/let-me-learn-the-learning-rate-eta-in-xgboost-d9ad6ec78363), default: 0.3
+ - `gamma`: Used for [tuning of Regularization](https://medium.com/data-design/xgboost-hi-im-gamma-what-can-i-do-for-you-and-the-tuning-of-regularization-a42ea17e6ab6), default: 0
+ - `colsample_bytree`: Column sampling, default: 1
+ - `min_child_weight`: Minimum leaf weight, default: 1
+ - `subsample`: Row sampling, default: 1
+
+We'll break down the tuning of these into five sections:
+
+ 1. Fixing learning rate `eta` and number of iterations `nrounds`
+ 2. Maximum depth `max_depth` and child weight `min_child_weight`
+ 3. Setting column `colsample_bytree` and row sampling `subsample`
+ 4. Experimenting with different `gamma` values
+ 5. Reducing the learning rate `eta`
+
+In general, the idea is to use higher learning rate to tune the hyperparamers
+(which can be computationally really heavy process) as it involves fitting
+a model for each configuration of different hyperparameters, and then use 
+these parameters to fit the final model with lower learning rate and higher 
+number of trees. We'll be using values obtained from earlier steps to fit the
+models in the upcoming ones. These values can be obtained from `train`-class
+objects from `model$bestTune$hyperparameter`.
+
+## Baseline Models
+
+First, we set up two baseline models: One with simple linear regression and
+another using XGBoost's default hyperparameters. This is to provide reference
+points to see what kind of effect the tuning has on the model performance. 
+
+### Simple Linear Regression
+
+Linear regression requires the data to have normal distribution. After 
+inspecting the response variable:
+
+```{r saleprice distribution, message=FALSE, fig.height=4}
+ggplot2::qplot(tr$SalePrice) + geom_histogram(colour="black", fill="grey") + theme_bw()
+```
+
+We can see that the `SalePrice` is right skewed. Nonetheless, we already
+performed a log transformation of the variable to transform the RMSE metric
+to the same format the Kaggle measures the error:
+
+```{r saleprice distribution log, message=FALSE, fig.height=4}
+ggplot2::qplot(tr_treated$SalePrice_clean) + geom_histogram(colour="black", fill="grey") + theme_bw()
+```
+
+Which now meets the condition for normal distribution for `y` in simple linear
+regression. We can simply use the nonparametric Spearman's rank correlation
+against `SalePrice` and the explanatory variables and select the one as `x` that has
+the highest measure:
+
+```{r selecting mcor}
+(mcor <- tr_treated %>% 
+{cor(select(., -SalePrice_clean), .$SalePrice_clean, method = "spearman")} %>% 
+    .[. == max(.), ])
+```
+
+Note though the condition for normal distribution is met, basically we
+can't use Pearson's correlation coefficient as the other conditions for it
+aren't met: some of the variables are categorical or ordinal while numerical
+x and y are required.
+
+The variable will be ``r names(mcor)`` with a $r_{s}$ of `r round(as.numeric(mcor), digits = 2)`.
+Now we visualize the relationship with a scatterplot and a best fit line:
+
+```{r mcor scatterplot, fig.height=4}
+lin_x <- tr_treated[, which(names(tr_treated) == names(mcor))]
+lin_y <- tr_treated$SalePrice_clean
+
+ggplot2::ggplot() +
+  aes(x = lin_x, y = lin_y) +
+  geom_jitter() +
+  xlab(names(mcor)) +
+  ylab("SalePrice (log)") +
+  theme_bw() +
+  geom_smooth(method = "lm")
+```
+
+And train a linear model with `lm()` using ``r names(mcor)`` as the
+explanatory variable:
+
+```{r linear model}
+linear_base <- lm(paste0("SalePrice_clean ~ ", names(mcor)),data = tr_treated)
+```
+
+
+### XGBoost with Default Hyperparameters
+
+We'll set up a tuning grid with default values, define a `trainControl()`
+function (which in this case disables printing training log to console
+plus disables resampling as we want to use all training data to fit the
+model), and finally fit the model with `caret::train()`:
+
+```{r baseline model, message=FALSE}
+grid_default <- expand.grid(
+  nrounds = 100,
+  max_depth = 6,
+  eta = 0.3,
+  gamma = 0,
+  colsample_bytree = 1,
+  min_child_weight = 1,
+  subsample = 1
+)
+
+train_control <- caret::trainControl(
+  method = "none",
+  verboseIter = FALSE, # no training log
+  allowParallel = TRUE # FALSE for reproducible results 
+)
+
+xgb_base <- caret::train(
+  x = input_x,
+  y = input_y,
+  trControl = train_control,
+  tuneGrid = grid_default,
+  method = "xgbTree",
+  verbose = TRUE
+)
+```
+
+
+# Grid Search for Hyperparameters
+
+Next, we build tuning grid for `caret` to explore between different
+hyperparameter values. To get started we're using some suggestions from
+[here](https://www.slideshare.net/OwenZhang2/tips-for-data-science-competitions/14).
+
+## Step 1: Number of Iterations and the Learning Rate
+
+We going to start the tuning "the bigger knobs" by setting up the maximum
+number of trees:
+
+```{r nrounds}
+nrounds <- 1000
+```
+
+To get reasonable running time while testing hyperparameter combinations
+with `caret` we don't want to go over `r nrounds`. Then, we want to find a good enough learning rate for this number of trees,
+as for lower learning rates `r nrounds` iterations might not be enough.
+
+Next, as the maximum tree depth is also depending on the number of iterations
+and the learning rate, we want to experiment with it at this point to narrow
+down the possible hyperparameters. We'll also create a helper function to 
+create the visualizations with `ggplot2`, called `tuneplot()`:
+
+```{r First tune, warning=FALSE, fig.height=7}
+
+# note to start nrounds from 200, as smaller learning rates result in errors so
+# big with lower starting points that they'll mess the scales
+tune_grid <- expand.grid(
+  nrounds = seq(from = 200, to = nrounds, by = 50),
+  eta = c(0.025, 0.05, 0.1, 0.3),
+  max_depth = c(2, 3, 4, 5, 6),
+  gamma = 0,
+  colsample_bytree = 1,
+  min_child_weight = 1,
+  subsample = 1
+)
+
+tune_control <- caret::trainControl(
+  method = "cv", # cross-validation
+  number = 3, # with n folds 
+  #index = createFolds(tr_treated$Id_clean), # fix the folds
+  verboseIter = FALSE, # no training log
+  allowParallel = TRUE # FALSE for reproducible results 
+)
+
+xgb_tune <- caret::train(
+  x = input_x,
+  y = input_y,
+  trControl = tune_control,
+  tuneGrid = tune_grid,
+  method = "xgbTree",
+  verbose = TRUE
+)
+
+# helper function for the plots
+tuneplot <- function(x, probs = .90) {
+  ggplot(x) +
+    coord_cartesian(ylim = c(quantile(x$results$RMSE, probs = probs), min(x$results$RMSE))) +
+    theme_bw()
+}
+
+tuneplot(xgb_tune)
+xgb_tune$bestTune
+```
+
+
+With `r nrounds` iterations a learning rate of `r xgb_tune$bestTune$eta`
+seems to be a good starting point. The model currently has a cross-validated
+RMSE of `r round(min(xgb_tune$results$RMSE), digits = 5)`. Also to be noted 
+that with `max_depth = 2` and smaller learning rates the forest seems not yet
+stabile.
+
+## Step 2: Maximum Depth and Minimum Child Weight
+
+After fixing the learning rate to `r xgb_tune$bestTune$eta` and we'll also
+set maximum depth to `r xgb_tune$bestTune$max_depth` +-1 (or +2 if 
+`max_depth == 2`) to experiment a bit around the suggested best tune in
+previous step. Then, well fix maximum depth and minimum child weight:
+
+```{r second tune, warning=FALSE, fig.height=5}
+tune_grid2 <- expand.grid(
+  nrounds = seq(from = 50, to = nrounds, by = 50),
+  eta = xgb_tune$bestTune$eta,
+  max_depth = ifelse(xgb_tune$bestTune$max_depth == 2,
+    c(xgb_tune$bestTune$max_depth:4),
+    xgb_tune$bestTune$max_depth - 1:xgb_tune$bestTune$max_depth + 1),
+  gamma = 0,
+  colsample_bytree = 1,
+  min_child_weight = c(1, 2, 3),
+  subsample = 1
+)
+
+xgb_tune2 <- caret::train(
+  x = input_x,
+  y = input_y,
+  trControl = tune_control,
+  tuneGrid = tune_grid2,
+  method = "xgbTree",
+  verbose = TRUE
+)
+
+tuneplot(xgb_tune2)
+xgb_tune2$bestTune
+```
+
+The second tune results RMSE of `r round(min(xgb_tune2$results$RMSE), digits=5)`,
+`r glue("{round((min(xgb_tune$results$RMSE)/min(xgb_tune2$results$RMSE) - 1)*100, digits=2)}%")`
+over the previous step.
+
+## Step 3: Column and Row Sampling
+Based on this, we can fix minimum child weight to `r xgb_tune2$bestTune$min_child_weight`
+and maximum depth to `r xgb_tune2$bestTune$max_depth`. Next, we'll try
+different values for row and column sampling:
+
+```{r third tune, warning=FALSE, fig.height=5}
+tune_grid3 <- expand.grid(
+  nrounds = seq(from = 50, to = nrounds, by = 50),
+  eta = xgb_tune$bestTune$eta,
+  max_depth = xgb_tune2$bestTune$max_depth,
+  gamma = 0,
+  colsample_bytree = c(0.4, 0.6, 0.8, 1.0),
+  min_child_weight = xgb_tune2$bestTune$min_child_weight,
+  subsample = c(0.5, 0.75, 1.0)
+)
+
+xgb_tune3 <- caret::train(
+  x = input_x,
+  y = input_y,
+  trControl = tune_control,
+  tuneGrid = tune_grid3,
+  method = "xgbTree",
+  verbose = TRUE
+)
+
+tuneplot(xgb_tune3, probs = .95)
+xgb_tune3$bestTune
+```
+
+Based on the above, we can set column sampling to `r xgb_tune3$bestTune$colsample_bytree`
+and row sampling to `r xgb_tune3$bestTune$subsample`. RMSE at this point is `r round(min(xgb_tune3$results$RMSE), digits=5)`, which is
+`r glue("{round((min(xgb_tune2$results$RMSE)/min(xgb_tune3$results$RMSE)-1) * 100, digits=2)}%")`
+better than RMSE in step 2.
+
+## Step 4: Gamma
+Next, we again pick the best values from previous step, and now will see 
+whether changing the gamma has any effect on the model fit:
+
+```{r fourth tune, warning=FALSE, fig.height=5}
+tune_grid4 <- expand.grid(
+  nrounds = seq(from = 50, to = nrounds, by = 50),
+  eta = xgb_tune$bestTune$eta,
+  max_depth = xgb_tune2$bestTune$max_depth,
+  gamma = c(0, 0.05, 0.1, 0.5, 0.7, 0.9, 1.0),
+  colsample_bytree = xgb_tune3$bestTune$colsample_bytree,
+  min_child_weight = xgb_tune2$bestTune$min_child_weight,
+  subsample = xgb_tune3$bestTune$subsample
+)
+
+xgb_tune4 <- caret::train(
+  x = input_x,
+  y = input_y,
+  trControl = tune_control,
+  tuneGrid = tune_grid4,
+  method = "xgbTree",
+  verbose = TRUE
+)
+
+tuneplot(xgb_tune4)
+xgb_tune4$bestTune
+```
+
+After the inspection, we can set the gamma to `r xgb_tune4$bestTune$gamma`. 
+RMSE of this model is `r round(min(xgb_tune4$results$RMSE), digits=5)`
+`r if(xgb_tune4$bestTune$gamma!=0){glue("which is {round((min(xgb_tune3$results$RMSE)/min(xgb_tune4$results$RMSE)-1)*100, digits=2)}% improvement.")}else{"."}`
+
+## Step 5: Reducing the Learning Rate
+
+Now, we have tuned the hyperparameters and can start reducing the learning
+rate to get to the final model:
+
+```{r fifth tune, warning=FALSE}
+tune_grid5 <- expand.grid(
+  nrounds = seq(from = 100, to = 10000, by = 100),
+  eta = c(0.01, 0.015, 0.025, 0.05, 0.1),
+  max_depth = xgb_tune2$bestTune$max_depth,
+  gamma = xgb_tune4$bestTune$gamma,
+  colsample_bytree = xgb_tune3$bestTune$colsample_bytree,
+  min_child_weight = xgb_tune2$bestTune$min_child_weight,
+  subsample = xgb_tune3$bestTune$subsample
+)
+
+xgb_tune5 <- caret::train(
+  x = input_x,
+  y = input_y,
+  trControl = tune_control,
+  tuneGrid = tune_grid5,
+  method = "xgbTree",
+  verbose = TRUE
+)
+
+tuneplot(xgb_tune5)
+xgb_tune5$bestTune
+```
+
+These will be the hyperparameters for the final model. RMSE now sets to 
+`r round(min(xgb_tune5$results$RMSE), digits=5)`, resulting in improvement of
+`r glue("{round((min(xgb_tune4$results$RMSE)/min(xgb_tune5$results$RMSE)-1)*100, digits=2)}%")`
+over the step 4, which in total is
+`r glue("{round((min(xgb_tune$results$RMSE)/min(xgb_tune5$results$RMSE)-1)*100, digits=2)}%")`
+better than the first tune.
+
+## Fitting the Model
+
+Now that we have determined the parameters we want to use, we will use the
+training data (excluding the hold-out set which we will soon use to measure
+the model performance) without resampling to fit the model:
+
+```{r final model, comment=NA}
+(final_grid <- expand.grid(
+  nrounds = xgb_tune5$bestTune$nrounds,
+  eta = xgb_tune5$bestTune$eta,
+  max_depth = xgb_tune5$bestTune$max_depth,
+  gamma = xgb_tune5$bestTune$gamma,
+  colsample_bytree = xgb_tune5$bestTune$colsample_bytree,
+  min_child_weight = xgb_tune5$bestTune$min_child_weight,
+  subsample = xgb_tune5$bestTune$subsample
+))
+
+(xgb_model <- caret::train(
+  x = input_x,
+  y = input_y,
+  trControl = train_control,
+  tuneGrid = final_grid,
+  method = "xgbTree",
+  verbose = TRUE
+))
+```
+
+Note, that this model is not trained with whole training set yet which we will
+still do before submitting the predictions.
+
+# Evaluating the Model Performance
+
+Now we will evaluate the model performance by:
+
+ - Testing the performance of the two baseline models and the final model with the hold-out data
+ - Submitting predictions to Kaggle from default hyperparameter XGBoost plus the tuned one 
+ - Testing whether taking the hold-out set had any effect on the cross-validated RMSE
+  
+## With the Hold-out Set
+
+By testing the performance with the hold-out set, we can see the effects that 
+the tuning had over the two baseline models: 
+
+```{r hold-out RMSE}
+holdout_x <- select(tr_holdout, -SalePrice_clean)
+holdout_y <- tr_holdout$SalePrice_clean
+
+(linear_base_rmse <- ModelMetrics::rmse(holdout_y, predict(linear_base, newdata = holdout_x)))
+(xgb_base_rmse <- ModelMetrics::rmse(holdout_y, predict(xgb_base, newdata = holdout_x)))
+(xgb_model_rmse <- ModelMetrics::rmse(holdout_y, predict(xgb_model, newdata = holdout_x)))
+```
+
+The linear model was, as expected, worst performer with RMSE of `r round(linear_base_rmse, digits=5)`.
+With the hold-out set, the tuned model with RMSE of `r round(xgb_model_rmse, digits=5)` performed
+`r glue("{round((xgb_base_rmse/xgb_model_rmse-1)*100, digits=2)}%")`
+better than the baseline XGBoost, while compared to the linear base model we
+can observe `r glue("{round((linear_base_rmse/xgb_model_rmse-1)*100, digits=2)}%")`
+increase in the RMSE measured performance.
+
+## Submitting Predictions to Kaggle
+
+First, we combine the hold-out set to the training data used in model tuning:
+
+```{r combining hold-out and training sets}
+tr_combi <- bind_rows(tr_treated, tr_holdout)
+tr_x <- select(tr_combi, -SalePrice_clean)
+tr_y <- tr_combi$SalePrice_clean
+```
+
+Then train the baseline model and submit the predictions to get a score from
+a public side of the test set from Kaggle:
+
+```{r baseline prediction}
+xgb_base_final <- caret::train(
+  x = tr_x,
+  y = tr_y,
+  trControl = train_control,
+  tuneGrid = grid_default,
+  method = "xgbTree",
+  verbose = TRUE
+)
+
+base_prediction <- exp(predict(xgb_base_final, newdata = te_treated))
+base_submission <- data_frame(Id = te$Id, SalePrice = base_prediction)
+write.csv(base_submission, "submission_baseline.csv", row.names = FALSE)
+
+(rmse_te_baseline <- 0.14572)
+```
+
+This submission scored `r rmse_te_baseline`, which is not too bad for a 
+baseline model. Now we submit predictions from the tuned model:
+
+```{r prediction}
+xgb_model_final <- caret::train(
+  x = as.matrix(tr_x), # tr_x is data frame, xgbTree needs matrix
+  y = tr_y,
+  trControl = train_control,
+  tuneGrid = final_grid,
+  method = "xgbTree",
+  verbose = TRUE
+)
+
+prediction <- exp(predict(xgb_model, newdata = te_treated))
+submission <- data_frame(Id = te$Id, SalePrice = prediction)
+write.csv(submission, "submission.csv", row.names = FALSE)
+
+(rmse_te_tuned <- 0.12903)
+```
+
+The tuned model's submission scored `r rmse_te_tuned`, which is `r round(rmse_te_baseline/rmse_te_tuned-1, digits=3)*100`
+% improvement over the base model. It's also to be noted that there can be a
+bit play in the submission results due the fact that we didn't clean the data
+before modeling. If there are e.g. outliers, the way how they're shuffled in the 
+cross-validation folds might have an impact on the tuning process of the
+hyperparameters and therefore they might impact the performance of the model 
+with the Kaggle's public test data.
+
+## Cross-Validated RMSE vs Hold-out RMSE
+
+We can still perform one last test to see what would had been the cross-validated
+RMSE with the final parameters _if_ we had used the whole training set
+(instead of having a separate hold-out set) to train the model:
+
+```{r RMSE test, comment=NA}
+(xgb_test <- caret::train(
+  x = as.matrix(tr_x), # tr_x is data frame, xgbTree needs matrix
+  y = tr_y,
+  trControl = tune_control,
+  tuneGrid = final_grid,
+  method = "xgbTree",
+  verbose = TRUE
+))
+```
+
+Comparing this to the model trained without the hold-out set, increasing
+the sample size by 25% resulted in `r glue("{round((xgb_model_rmse/xgb_test$results$RMSE-1)*100, digits=2)}%")`
+increase in the model performance measured with a cross-validated RMSE of `r round(xgb_test$results$RMSE, digits = 5)`
+reference RMSE being `r round(xgb_model_rmse, digits=5)`. So in this 
+case, having a separate hold-out set was perhaps worth the sacrifice in the amount
+of the training data. Also, the cross-validated performance was in line with the 
+performance measures obtained using both the hold-out set and the public score
+from Kaggle.
