@@ -1,4 +1,4 @@
-# Jupyter2csv
+# JNotebook2csv
 
 We have four input type:
 1. indir(You can transfer all jupyter notebooks to a specific folder)
