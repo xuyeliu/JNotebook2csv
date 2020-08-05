@@ -1,5 +1,6 @@
 # JNotebook2csv
 
+We parse Jupyter Notebook into several cells and divide them into markdown cell and code cell.
 We have four input type:
 1. indir(You can transfer all jupyter notebooks to a specific folder)
 2. infile(You can also transfer one specific jupyter notebook to a specific folder or specific csv file)
